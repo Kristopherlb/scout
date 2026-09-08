@@ -100,6 +100,48 @@
       "evidence": "python3 tools/check_standards.py controls"
     },
     {
+      "control_id": "SCOUT-DX-001",
+      "requirement": "rac/requirements/scout-onboarding-and-agent-interface.md#REQ-001",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_onboarding.TestOnboarding.test_bundle_rejects_private_material"
+    },
+    {
+      "control_id": "SCOUT-DX-002",
+      "requirement": "rac/requirements/scout-onboarding-and-agent-interface.md#REQ-002",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_onboarding.TestOnboarding.test_equip_preserves_unrelated_files_and_rejects_conflict"
+    },
+    {
+      "control_id": "SCOUT-DX-003",
+      "requirement": "rac/requirements/scout-onboarding-and-agent-interface.md#REQ-003",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_onboarding.TestOnboarding.test_status_is_derived_from_artifacts"
+    },
+    {
+      "control_id": "SCOUT-DX-004",
+      "requirement": "rac/requirements/scout-onboarding-and-agent-interface.md#REQ-004",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_onboarding.TestOnboarding.test_agent_json_flag_works_after_onboard_verb"
+    },
+    {
+      "control_id": "SCOUT-DX-005",
+      "requirement": "rac/requirements/scout-onboarding-and-agent-interface.md#REQ-005",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_onboarding.TestOnboarding.test_start_creates_valid_contract_and_fail_closed_harnesses"
+    },
+    {
+      "control_id": "SCOUT-DX-006",
+      "requirement": "rac/requirements/scout-onboarding-and-agent-interface.md#REQ-006",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_onboarding.TestOnboarding.test_doctor_does_not_require_github_credentials_for_local_checks"
+    },
+    {
       "control_id": "SCOUT-CI-002",
       "requirement": "rac/requirements/scout-ci-and-evidence.md#REQ-002",
       "enforcement": "ci",

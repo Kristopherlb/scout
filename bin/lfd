@@ -9,7 +9,9 @@ shift || true
 case "$CMD" in
   status)      exec python3 "$HUB_ROOT/tools/lfd_status.py" --hub-root "$HUB_ROOT" "$@" ;;
   dashboard)   exec python3 "$HUB_ROOT/tools/lfd_dashboard.py" --hub-root "$HUB_ROOT" "$@" ;;
-  new-target)  exec python3 "$HUB_ROOT/tools/lfd_new_target.py" "$@" --hub-root "$HUB_ROOT" ;;
+  doctor)      exec python3 "$HUB_ROOT/tools/lfd_doctor.py" --hub-root "$HUB_ROOT" "$@" ;;
+  onboard)     exec python3 "$HUB_ROOT/tools/lfd_onboard.py" --hub-root "$HUB_ROOT" "$@" ;;
+  new-target)  exec python3 "$HUB_ROOT/tools/lfd_onboard.py" --hub-root "$HUB_ROOT" start "$@" ;;
   review)      exec python3 "$HUB_ROOT/tools/lfd_review.py" "$@" --hub-root "$HUB_ROOT" ;;
   retro)       exec python3 "$HUB_ROOT/tools/lfd_retro.py" "$@" --hub-root "$HUB_ROOT" ;;
   poll)        exec bash "$HUB_ROOT/ops/poll-and-score.sh" "$HUB_ROOT/targets/${1:?usage: lfd poll <target>}" ;;
@@ -20,14 +22,16 @@ case "$CMD" in
   audit)      exec python3 "$HUB_ROOT/tools/lfd_audit.py" "$@" --hub-root "$HUB_ROOT" ;;
   canaries)    exec bash "$HUB_ROOT/ops/generate-canaries.sh" "$HUB_ROOT/targets/${1:?usage: lfd canaries <target>}" ;;
   test)        exec python3 -m unittest discover -s "$HUB_ROOT/tools/tests" -v ;;
-  help|*)
+  help)
     cat <<'EOF'
 lfd — LFD eval hub
 
   lfd status [-v] [--target NAME]   per-target health: scores ± CI, sparkline,
                                     divergence/liveness/probe flags, economics
   lfd dashboard                     regenerate dashboard/index.html (self-contained)
-  lfd new-target <name> <repo-url>  scaffold a registry entry + onboarding checklist
+  lfd doctor [--target NAME]         validate local tools, contract, and sandbox
+  lfd onboard <verb> ...             start, inspect, equip, verify, status, or run
+  lfd new-target <name> <repo-url>  compatibility alias for `onboard start`
   lfd poll <target> | poll-all      run the scoring poll locally
   lfd audit <target>                Phase 8.5 mechanical audit for a target
   lfd canaries <target>             embed fresh canaries in a target's holdout
@@ -39,4 +43,8 @@ lfd — LFD eval hub
 Docs: README.md · docs/onboarding-a-target.md · docs/architecture.md · SECURITY.md
 EOF
     ;;
+  *)
+    echo "lfd: unknown command: $CMD" >&2
+    echo "Run 'lfd help' for usage." >&2
+    exit 2 ;;
 esac

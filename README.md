@@ -43,6 +43,7 @@ ShellCheck, Ruff, Mypy, and Coverage.
 ```bash
 bin/lfd status
 bin/lfd dashboard
+bin/lfd doctor
 bin/lfd test
 python3 tools/ci_checks.py all
 python3 tools/ci_checks.py public-release
@@ -62,7 +63,7 @@ repository from a source release instead:
 2. Initialize a new Git repository and create a private remote.
 3. Restrict read access to trusted humans. Evaluated agents and their
    credentials must never be able to read it.
-4. Run `bin/lfd new-target <name> <repo-url>` and follow
+4. Run `bin/lfd onboard start <name> <repo-url>` and follow
    [the onboarding guide](docs/onboarding-a-target.md).
 5. Configure the target access token and polling schedule in the private
    repository only.
