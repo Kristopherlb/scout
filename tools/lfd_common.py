@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
-"""lfd_common — shared core for the eval hub. Pure stdlib, deterministic.
-
-Single source of truth for: config.env parsing, log.jsonl reading/writing,
-divergence detection, harness versioning, and target discovery. Both the
-ops/ runtime and the tools/ CLIs import from here so the two can never
-disagree about a row's meaning.
-"""
+"""Shared deterministic policy for logs, gates, and score interpretation."""
 import hashlib
 import json
 import os
 import re
 
-VALID_STATUSES = {"onboarding", "active", "paused", "retired", "example"}
-PROBE_MODES = {"off", "always", "every-k", "on-divergence"}
+import lfd_contract
+
+ConfigError = lfd_contract.ContractError
 
 # Row fields that arrive from the agent side (tag message) and must be
 # numeric or absent — never trusted as code or free text.
@@ -24,17 +19,44 @@ AGENT_NUMERIC_FIELDS = (
 MODEL_ID_RE = re.compile(r"^[A-Za-z0-9._:/-]{1,128}$")
 
 
-class ConfigError(ValueError):
-    """A required target configuration value is absent or invalid."""
-
-
 def config_value(config, key, *, allow_empty=False):
-    """Return a required configuration value without inventing a default."""
-    if key not in config:
-        raise ConfigError(f"required config value {key} is missing")
-    value = config[key]
+    """Read the fixed shell-adapter vocabulary from a validated contract.
+
+    Flat dictionaries remain accepted for pure function tests; runtime callers
+    obtain nested documents exclusively through ``lfd_contract.load_target``.
+    """
+    paths = {
+        "TARGET_NAME": "identity.name",
+        "TARGET_REPO_URL": "identity.repository_url",
+        "HOLDOUT_TAG_PREFIX": "holdout.tag_prefix",
+        "STATUS": "lifecycle.status",
+        "MIN_HOURS_BETWEEN_HOLDOUT": "holdout.min_hours_between",
+        "BUDGET_MAX_HOLDOUT_RUNS": "holdout.max_runs",
+        "DIVERGENCE_WINDOW_CYCLES": "detectors.divergence.window_cycles",
+        "PROBE_ON_HOLDOUT": "detectors.probe.mode",
+        "PROBE_EVERY_K": "detectors.probe.every_k",
+        "PROBE_FLOOR": "detectors.probe.floor",
+        "COVERAGE_VARIANCE_FLOOR": "detectors.coverage_variance.floor",
+        "BUILD_CMD": "liveness.build_command",
+        "BOOT_CMD": "liveness.boot_command",
+        "HEALTH_CHECK": "liveness.health_check",
+        "LIVENESS_EXEMPT": "liveness.exemption",
+        "LIVENESS_TIMEOUT": "liveness.timeout_seconds",
+        "LFD_SANDBOX": "sandbox.backend",
+        "SANDBOX_IMAGE": "sandbox.image",
+        "SANDBOX_CPUS": "sandbox.cpus",
+        "SANDBOX_MEMORY": "sandbox.memory",
+        "SANDBOX_PIDS_LIMIT": "sandbox.pids_limit",
+        "EXECUTOR_MODEL": "executor.model",
+    }
+    if key in config:
+        value = config[key]
+    elif key in paths:
+        value = lfd_contract.value(config, paths[key])
+    else:
+        raise ConfigError("missing_field", key, "required configuration value is missing")
     if not allow_empty and not str(value).strip():
-        raise ConfigError(f"required config value {key} is empty")
+        raise ConfigError("invalid_value", key, "required configuration value is empty")
     return value
 
 
@@ -43,9 +65,9 @@ def config_int(config, key, *, minimum=None):
     try:
         parsed = int(value)
     except (TypeError, ValueError) as exc:
-        raise ConfigError(f"config value {key} must be an integer") from exc
+        raise ConfigError("invalid_type", key, "must be an integer") from exc
     if minimum is not None and parsed < minimum:
-        raise ConfigError(f"config value {key} must be at least {minimum}")
+        raise ConfigError("invalid_value", key, f"must be at least {minimum}")
     return parsed
 
 
@@ -54,30 +76,14 @@ def config_float(config, key, *, minimum=None, maximum=None):
     try:
         parsed = float(value)
     except (TypeError, ValueError) as exc:
-        raise ConfigError(f"config value {key} must be numeric") from exc
+        raise ConfigError("invalid_type", key, "must be numeric") from exc
     if parsed != parsed or parsed in (float("inf"), float("-inf")):
-        raise ConfigError(f"config value {key} must be finite")
+        raise ConfigError("invalid_value", key, "must be finite")
     if minimum is not None and parsed < minimum:
-        raise ConfigError(f"config value {key} must be at least {minimum}")
+        raise ConfigError("invalid_value", key, f"must be at least {minimum}")
     if maximum is not None and parsed > maximum:
-        raise ConfigError(f"config value {key} must be at most {maximum}")
+        raise ConfigError("invalid_value", key, f"must be at most {maximum}")
     return parsed
-
-
-def parse_config_env(path):
-    """Parse a KEY="VALUE" config.env without executing it."""
-    config = {}
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            value = value.strip()
-            if value and value[0] in "\"'" and value[-1:] == value[0]:
-                value = value[1:-1]
-            config[key.strip()] = value
-    return config
 
 
 def read_log(path):
@@ -159,15 +165,8 @@ def harness_version(harness_dir):
 
 
 def iter_targets(hub_root):
-    """Yield (name, config, target_dir) for every registered target."""
-    targets_dir = os.path.join(hub_root, "targets")
-    if not os.path.isdir(targets_dir):
-        return
-    for name in sorted(os.listdir(targets_dir)):
-        target_dir = os.path.join(targets_dir, name)
-        config_path = os.path.join(target_dir, "config.env")
-        if os.path.isfile(config_path):
-            yield name, parse_config_env(config_path), target_dir
+    """Yield validated registry entries from the target contract module."""
+    yield from lfd_contract.iter_targets(hub_root)
 
 
 def probe_floor_breaches(row, floor):
@@ -208,9 +207,9 @@ def liveness_state(config):
     ('exempt', reason)  — LIVENESS_EXEMPT gives a justified skip.
     ('unset', ...)      — neither: the empty-by-default silent-skip hole.
     """
-    build = (config.get("BUILD_CMD") or "").strip()
-    health = (config.get("HEALTH_CHECK") or "").strip()
-    exempt = (config.get("LIVENESS_EXEMPT") or "").strip()
+    build = str(config_value(config, "BUILD_CMD", allow_empty=True)).strip()
+    health = str(config_value(config, "HEALTH_CHECK", allow_empty=True)).strip()
+    exempt = str(config_value(config, "LIVENESS_EXEMPT", allow_empty=True)).strip()
     if build or health:
         return "configured", "liveness gate armed"
     if exempt:
@@ -276,7 +275,7 @@ def calibration_state(target_dir):
 def activation_blockers(config, target_dir):
     """Every reason an 'active' target should be blocked. Empty = clear.
     Non-active targets are never gated (return [])."""
-    if config.get("STATUS") != "active":
+    if config_value(config, "STATUS") != "active":
         return []
     blockers = []
     lv, detail = liveness_state(config)

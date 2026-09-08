@@ -9,10 +9,10 @@ public source repository must contain synthetic fixtures only.
 bin/lfd new-target myrepo git@github.com:YOUR-ORG/myrepo.git
 ```
 
-This creates `targets/myrepo/` with `STATUS="onboarding"`, empty eval
-directories, and fail-closed starter harnesses. An onboarding target is never
-polled, and the generated harnesses return an error until the design workflow
-replaces them with real implementations.
+This creates `targets/myrepo/` with `lifecycle.status` set to `onboarding`, empty eval
+directories, and an empty harness directory. An onboarding target is never
+polled; scoring remains unavailable until the design workflow writes real
+harnesses.
 
 ## 2. Design the eval and harness
 
@@ -29,9 +29,9 @@ The design process must:
   [architecture.md](architecture.md);
 - emit `targets/myrepo/goal.md`;
 - generate canaries with `bin/lfd canaries myrepo`;
-- configure the liveness gate in `targets/myrepo/config.env`.
+- configure the liveness gate in `targets/myrepo/target.json`.
 
-If `BUILD_CMD`, `HEALTH_CHECK`, and `LIVENESS_EXEMPT` are all empty, activation
+If the build command, health check, and written exemption are all empty, activation
 is blocked. A skipped liveness gate must be an explicit, justified exemption.
 
 ## 3. Equip the target repository
@@ -84,7 +84,7 @@ bin/lfd audit myrepo
 Commit `targets/myrepo/audit-report.json`. The report must pass and its stamped
 `harness_version` must match the current harness. Add a calibration report with
 non-overlapping known-good and known-bad intervals. Then choose the probe
-cadence, configure the sandbox image, and set `STATUS="active"`.
+cadence and configure the sandbox image before setting active status.
 
 CI blocks activation when the liveness, audit, or calibration gate is missing,
 failed, or stale.
@@ -127,4 +127,4 @@ host; GitHub Actions supplies this variable automatically.
 | Divergence or weak probes | Run the LFD design skill in patch mode with an independent, stronger reviewer |
 | Run ends | Run `bin/lfd retro myrepo` and capture newly observed cheats |
 | Eval is exposed or reused | Rotate cases and regenerate per-run canaries |
-| Pausing a target | Set `STATUS="paused"` to retain history without polling |
+| Pausing a target | Set `lifecycle.status` to `paused` to retain history without polling |

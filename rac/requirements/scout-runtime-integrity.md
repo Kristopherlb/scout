@@ -20,6 +20,8 @@ evidence.
 - [REQ-004] Public source MUST exclude every real evaluation campaign and every target fixture other than the exact synthetic `targets/_example`.
 - [REQ-005] Sandbox infrastructure failure MUST abort scoring without writing a score.
 - [REQ-006] Scoring-log writer changes MUST receive human review confirming that every row still routes through `ops/log_utils.py`.
+- [REQ-007] Target operational configuration MUST be a strictly validated, non-executable `target.json` contract loaded through `tools/lfd_contract.py`.
+- [REQ-008] Runtime commands MUST reject legacy `config.env` target configuration.
 
 ## Success Metrics
 

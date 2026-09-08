@@ -87,7 +87,8 @@ jobs:
       - name: Pull configured sandbox image
         shell: bash
         run: |
-          source targets/_example/config.env
+          SANDBOX_IMAGE=$(python3 tools/lfd_contract.py get \
+            --target-dir targets/_example --field sandbox.image)
           docker pull "$SANDBOX_IMAGE"
       - name: Verify required isolation boundaries
         env:

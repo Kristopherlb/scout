@@ -18,6 +18,7 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 HUB_ROOT = os.path.abspath(os.path.join(TESTS_DIR, "..", ".."))
 sys.path.insert(0, os.path.join(HUB_ROOT, "tools"))
 import lfd_common  # noqa: E402
+import lfd_contract  # noqa: E402
 
 POLL = os.path.join(HUB_ROOT, "ops", "poll-and-score.sh")
 
@@ -95,30 +96,53 @@ exec "$@"
         shutil.rmtree(self.tmp)
 
     def write_config(self, **overrides):
-        cfg = {
-            "TARGET_NAME": "e2e",
-            "TARGET_REPO_URL": self.repo,
-            "HOLDOUT_TAG_PREFIX": "holdout-check-",
-            "STATUS": "active",
-            "MIN_HOURS_BETWEEN_HOLDOUT": "2",
-            "DIVERGENCE_WINDOW_CYCLES": "5",
-            "BUDGET_MAX_HOLDOUT_RUNS": "100",
-            "PROBE_ON_HOLDOUT": "off",
-            "PROBE_EVERY_K": "3",
-            "PROBE_FLOOR": "0.8",
-            "BUILD_CMD": "", "BOOT_CMD": "", "HEALTH_CHECK": "",
-            "LIVENESS_EXEMPT": "test fixture",
-            "LIVENESS_TIMEOUT": "30",
-            "LFD_SANDBOX": "docker",
-            "SANDBOX_IMAGE": "python:3-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6",
-            "SANDBOX_CPUS": "1",
-            "SANDBOX_MEMORY": "256m",
-            "SANDBOX_PIDS_LIMIT": "64",
+        contract = lfd_contract.new_contract("e2e", self.repo)
+        contract["lifecycle"]["status"] = "active"
+        contract["holdout"].update({"min_hours_between": 2, "max_runs": 100})
+        contract["detectors"]["divergence"]["window_cycles"] = 5
+        contract["detectors"]["probe"].update({"mode": "off", "every_k": 3,
+                                                    "floor": 0.8})
+        contract["liveness"].update({"build_command": "", "boot_command": "",
+                                      "health_check": "", "exemption": "test fixture",
+                                      "timeout_seconds": 30})
+        contract["sandbox"].update({"backend": "docker", "cpus": 1,
+                                     "memory": "256m", "pids_limit": 64})
+        paths = {
+            "STATUS": ("lifecycle", "status"),
+            "MIN_HOURS_BETWEEN_HOLDOUT": ("holdout", "min_hours_between"),
+            "DIVERGENCE_WINDOW_CYCLES": ("detectors", "divergence", "window_cycles"),
+            "BUDGET_MAX_HOLDOUT_RUNS": ("holdout", "max_runs"),
+            "PROBE_ON_HOLDOUT": ("detectors", "probe", "mode"),
+            "PROBE_EVERY_K": ("detectors", "probe", "every_k"),
+            "PROBE_FLOOR": ("detectors", "probe", "floor"),
+            "BUILD_CMD": ("liveness", "build_command"),
+            "BOOT_CMD": ("liveness", "boot_command"),
+            "HEALTH_CHECK": ("liveness", "health_check"),
+            "LIVENESS_EXEMPT": ("liveness", "exemption"),
+            "LIVENESS_TIMEOUT": ("liveness", "timeout_seconds"),
+            "LFD_SANDBOX": ("sandbox", "backend"),
+            "SANDBOX_IMAGE": ("sandbox", "image"),
+            "SANDBOX_CPUS": ("sandbox", "cpus"),
+            "SANDBOX_MEMORY": ("sandbox", "memory"),
+            "SANDBOX_PIDS_LIMIT": ("sandbox", "pids_limit"),
         }
-        cfg.update(overrides)
-        with open(os.path.join(self.target_dir, "config.env"), "w") as f:
-            f.write("".join(f'{k}="{v}"\n' for k, v in cfg.items()
-                            if v is not None))
+        for key, value in overrides.items():
+            path = paths[key]
+            parent = contract
+            for part in path[:-1]:
+                parent = parent[part]
+            if value is None:
+                del parent[path[-1]]
+            else:
+                if key in {"MIN_HOURS_BETWEEN_HOLDOUT", "DIVERGENCE_WINDOW_CYCLES",
+                           "BUDGET_MAX_HOLDOUT_RUNS", "PROBE_EVERY_K", "LIVENESS_TIMEOUT",
+                           "SANDBOX_PIDS_LIMIT"}:
+                    value = int(value)
+                elif key in {"PROBE_FLOOR", "SANDBOX_CPUS"}:
+                    value = float(value)
+                parent[path[-1]] = value
+        with open(os.path.join(self.target_dir, "target.json"), "w") as f:
+            json.dump(contract, f)
 
     def write_scorer(self, body):
         path = os.path.join(self.target_dir, "harness", "score-holdout.sh")
@@ -242,7 +266,7 @@ exec "$@"
         self.push_tag(1)
         res = self.run_poll()
         self.assertNotEqual(res.returncode, 0)
-        self.assertIn("BUDGET_MAX_HOLDOUT_RUNS", res.stderr)
+        self.assertIn("holdout.max_runs", res.stderr)
         self.assertEqual(len(lfd_common.read_log(self.log)), 0)
 
     def test_active_target_requires_docker_backend(self):
@@ -252,7 +276,7 @@ exec "$@"
         self.push_tag(1)
         res = self.run_poll()
         self.assertNotEqual(res.returncode, 0)
-        self.assertIn("active targets require LFD_SANDBOX=docker", res.stderr)
+        self.assertIn("sandbox.backend", res.stderr)
         self.assertEqual(len(lfd_common.read_log(self.log)), 0)
 
     def test_mutable_sandbox_image_is_rejected(self):
@@ -262,7 +286,7 @@ exec "$@"
         self.push_tag(1)
         res = self.run_poll()
         self.assertNotEqual(res.returncode, 0)
-        self.assertIn("SANDBOX_IMAGE must be pinned", res.stderr)
+        self.assertIn("sandbox.image", res.stderr)
         self.assertEqual(len(lfd_common.read_log(self.log)), 0)
 
     def test_malicious_tag_message_neutralized_end_to_end(self):

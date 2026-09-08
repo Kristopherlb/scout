@@ -30,6 +30,13 @@
       "evidence": "Pull-request checklist: bin/lfd only routes and delegates; behavior remains in command modules"
     },
     {
+      "control_id": "SCOUT-ARCH-005",
+      "requirement": "rac/requirements/scout-architecture-boundaries.md#REQ-005",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 tools/check_standards.py architecture"
+    },
+    {
       "control_id": "SCOUT-RUN-001",
       "requirement": "rac/requirements/scout-runtime-integrity.md#REQ-001",
       "enforcement": "ci",
@@ -70,6 +77,20 @@
       "enforcement": "human-review",
       "severity": "FAIL",
       "evidence": "Pull-request checklist: every scoring-log write routes through ops/log_utils.py; no alternate Python or shell writer"
+    },
+    {
+      "control_id": "SCOUT-RUN-007",
+      "requirement": "rac/requirements/scout-runtime-integrity.md#REQ-007",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_contract"
+    },
+    {
+      "control_id": "SCOUT-RUN-008",
+      "requirement": "rac/requirements/scout-runtime-integrity.md#REQ-008",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_contract.TestTargetContract.test_rejects_legacy_config"
     },
     {
       "control_id": "SCOUT-CI-001",

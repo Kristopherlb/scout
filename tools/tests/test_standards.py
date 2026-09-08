@@ -12,6 +12,25 @@ CHECKER = os.path.join(HUB_ROOT, "tools", "check_standards.py")
 
 
 class TestArchitectureChecks(unittest.TestCase):
+    def test_contract_module_cannot_import_command_module(self):
+        with tempfile.TemporaryDirectory() as root:
+            tools_dir = os.path.join(root, "tools")
+            os.makedirs(tools_dir)
+            with open(os.path.join(tools_dir, "lfd_contract.py"), "w") as stream:
+                stream.write("import lfd_status\n")
+            with open(os.path.join(tools_dir, "lfd_status.py"), "w") as stream:
+                stream.write("VALUE = 1\n")
+
+            result = subprocess.run(
+                [sys.executable, CHECKER, "architecture", "--hub-root", root],
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("SCOUT-ARCH-005", result.stdout)
+        self.assertIn("lfd_contract.py", result.stdout)
+
     def test_core_cannot_import_command_module(self):
         with tempfile.TemporaryDirectory() as root:
             tools_dir = os.path.join(root, "tools")

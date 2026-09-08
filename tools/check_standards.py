@@ -112,19 +112,22 @@ def dependency_cycles(modules):
 
 def check_architecture(hub_root):
     failures = []
-    core_path = os.path.join(hub_root, "tools", "lfd_common.py")
     local_modules = local_python_modules(hub_root)
-    if os.path.isfile(core_path):
-        forbidden = sorted(
-            module_dependencies("tools.lfd_common", core_path, local_modules)
-        )
+    inner_modules = {"tools.lfd_common", "tools.lfd_contract"}
+    for module_name, control in (("tools.lfd_common", "SCOUT-ARCH-001"),
+                                 ("tools.lfd_contract", "SCOUT-ARCH-005")):
+        core_path = local_modules.get(module_name)
+        if not core_path:
+            continue
+        forbidden = sorted(module_dependencies(module_name, core_path, local_modules)
+                           - inner_modules)
         for module in forbidden:
             failures.append(
-                "SCOUT-ARCH-001 tools/lfd_common.py must not depend on "
+                f"{control} {os.path.relpath(core_path, hub_root)} must not depend on "
                 f"outer module {module}"
             )
     for name, path in sorted(local_modules.items()):
-        if name.startswith("tools.") and name != "tools.lfd_common":
+        if name.startswith("tools.") and name not in inner_modules:
             dependencies = module_dependencies(name, path, local_modules)
             for module in sorted(
                 dependency for dependency in dependencies
