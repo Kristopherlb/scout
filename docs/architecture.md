@@ -1,5 +1,27 @@
 # Architecture
 
+## Standards authority and dependency direction
+
+Scout's canonical requirements and accepted decisions live in `rac/` and are
+mapped to enforcement evidence in `standards/controls.json`. RAC validates the
+corpus and generated agent guidance; `tools/check_standards.py` provides the
+repository-specific deterministic checks. This separation avoids presenting a
+document validator as a semantic source-code analyzer.
+
+The current layout uses a partial inward dependency boundary:
+
+| Layer | Current location | Dependency rule |
+|---|---|---|
+| Inner policy | `tools/lfd_common.py` | imports no Scout command or operations adapter |
+| Application commands | other `tools/*.py` | may depend on policy, not Python adapters in `ops/` |
+| Operations adapters | `ops/`, workflows | may depend inward; own privileged I/O and integration |
+| Composition root | `bin/lfd` | routes requests and delegates behavior |
+
+Python runtime dependencies must remain acyclic. These are guardrails around
+the present design, not a claim that the existing directories are a finished
+package architecture. See ADR-001 and ADR-002 under `rac/decisions/` for the
+rationale and alternatives.
+
 ## Public framework, private operational hub
 
 The LFD design's core property: holdout scoring runs where the agent has no

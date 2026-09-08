@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "controls": [
+    {
+      "control_id": "SCOUT-ARCH-001",
+      "requirement": "rac/requirements/scout-architecture-boundaries.md#REQ-001",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 tools/check_standards.py architecture"
+    },
+    {
+      "control_id": "SCOUT-ARCH-002",
+      "requirement": "rac/requirements/scout-architecture-boundaries.md#REQ-002",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 tools/check_standards.py architecture"
+    },
+    {
+      "control_id": "SCOUT-ARCH-003",
+      "requirement": "rac/requirements/scout-architecture-boundaries.md#REQ-003",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 tools/check_standards.py architecture"
+    },
+    {
+      "control_id": "SCOUT-ARCH-004",
+      "requirement": "rac/requirements/scout-architecture-boundaries.md#REQ-004",
+      "enforcement": "human-review",
+      "severity": "WARN",
+      "evidence": "Pull-request checklist: bin/lfd only routes and delegates; behavior remains in command modules"
+    },
+    {
+      "control_id": "SCOUT-RUN-001",
+      "requirement": "rac/requirements/scout-runtime-integrity.md#REQ-001",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_e2e.TestPipelineE2E.test_missing_operational_config_fails_closed"
+    },
+    {
+      "control_id": "SCOUT-RUN-002",
+      "requirement": "rac/requirements/scout-runtime-integrity.md#REQ-002",
+      "enforcement": "human-review",
+      "severity": "FAIL",
+      "evidence": "Pull-request runtime-path review in .github/PULL_REQUEST_TEMPLATE.md"
+    },
+    {
+      "control_id": "SCOUT-RUN-003",
+      "requirement": "rac/requirements/scout-runtime-integrity.md#REQ-003",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 tools/check_standards.py architecture"
+    },
+    {
+      "control_id": "SCOUT-RUN-004",
+      "requirement": "rac/requirements/scout-runtime-integrity.md#REQ-004",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 tools/ci_checks.py public-release"
+    },
+    {
+      "control_id": "SCOUT-RUN-005",
+      "requirement": "rac/requirements/scout-runtime-integrity.md#REQ-005",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_e2e.TestPipelineE2E.test_sandbox_infrastructure_failure_aborts_without_score"
+    },
+    {
+      "control_id": "SCOUT-RUN-006",
+      "requirement": "rac/requirements/scout-runtime-integrity.md#REQ-006",
+      "enforcement": "human-review",
+      "severity": "FAIL",
+      "evidence": "Pull-request checklist: every scoring-log write routes through ops/log_utils.py; no alternate Python or shell writer"
+    },
+    {
+      "control_id": "SCOUT-CI-001",
+      "requirement": "rac/requirements/scout-ci-and-evidence.md#REQ-001",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 tools/check_standards.py controls"
+    },
+    {
+      "control_id": "SCOUT-CI-002",
+      "requirement": "rac/requirements/scout-ci-and-evidence.md#REQ-002",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 tools/check_standards.py controls"
+    },
+    {
+      "control_id": "SCOUT-CI-003",
+      "requirement": "rac/requirements/scout-ci-and-evidence.md#REQ-003",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 tools/check_standards.py ci && rac gate rac/"
+    },
+    {
+      "control_id": "SCOUT-CI-004",
+      "requirement": "rac/requirements/scout-ci-and-evidence.md#REQ-004",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "rac export rac/ --agent-rules --check"
+    },
+    {
+      "control_id": "SCOUT-CI-005",
+      "requirement": "rac/requirements/scout-ci-and-evidence.md#REQ-005",
+      "enforcement": "human-review",
+      "severity": "WARN",
+      "evidence": "Pull-request review of blocking guardrail test coverage"
+    }
+  ]
+}

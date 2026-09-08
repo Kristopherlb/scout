@@ -1,6 +1,6 @@
-# LFD Evals
+# Scout
 
-LFD Evals is an open-source toolkit for designing and operating blinded,
+Scout is an open-source toolkit for designing and operating blinded,
 anti-Goodhart evaluations for autonomous coding agents. It keeps fast
 developer feedback in the target repository while scoring hidden cases in a
 separate, trusted environment.
@@ -46,6 +46,7 @@ bin/lfd dashboard
 bin/lfd test
 python3 tools/ci_checks.py all
 python3 tools/ci_checks.py public-release
+python3 tools/check_standards.py all
 ```
 
 `bin/lfd status` and `bin/lfd dashboard` work immediately against the
@@ -80,11 +81,21 @@ private hub commits back upstream.
 | `templates/target-repo/` | Files copied into a repository under evaluation |
 | `skills/lfd-design/` | Agent-neutral LFD design skill source |
 | `targets/_example/` | Synthetic demonstration data only |
+| `rac/` | Canonical requirements and architecture decisions |
+| `standards/` | Requirement-to-control mappings and tool version pins |
 | `docs/` | Architecture, onboarding, and release guidance |
 
 Agent tools discover skills in different locations. Copy or link
 `skills/lfd-design/` into the skill directory used by your agent runtime; keep
 this directory as the canonical source.
+
+## Standards as code
+
+Scout keeps its canonical standards beside the source. RAC validates the
+requirements and accepted decisions, while `tools/check_standards.py` enforces
+deterministic dependency, control-coverage, and CI-contract rules. See
+[`standards/README.md`](standards/README.md) for the control model and local
+commands.
 
 ## Security boundary
 

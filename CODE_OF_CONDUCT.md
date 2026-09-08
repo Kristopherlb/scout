@@ -1,6 +1,6 @@
 # Code of conduct
 
-We want participation in LFD Evals to be safe, constructive, and welcoming.
+We want participation in Scout to be safe, constructive, and welcoming.
 
 Be respectful. Discuss ideas and behavior rather than attacking people. Make
 room for different backgrounds and levels of experience. Do not harass,
