@@ -22,30 +22,6 @@ def make_rows(dev_lower, holdout):
             for i, (dl, h) in enumerate(zip(dev_lower, holdout))]
 
 
-class TestConfigParser(unittest.TestCase):
-    def test_parse(self):
-        with tempfile.NamedTemporaryFile("w", suffix=".env", delete=False) as f:
-            f.write('# comment\nA="quoted"\nB=bare\nC=\'single\'\n\nD="x=y"\n')
-            path = f.name
-        try:
-            cfg = lfd_common.parse_config_env(path)
-        finally:
-            os.unlink(path)
-        self.assertEqual(cfg, {"A": "quoted", "B": "bare", "C": "single", "D": "x=y"})
-
-    def test_never_executes(self):
-        marker = os.path.join(tempfile.gettempdir(), "lfd-test-should-not-exist")
-        with tempfile.NamedTemporaryFile("w", suffix=".env", delete=False) as f:
-            f.write(f'A="$(touch {marker})"\n')
-            path = f.name
-        try:
-            cfg = lfd_common.parse_config_env(path)
-            self.assertIn("$(touch", cfg["A"])
-            self.assertFalse(os.path.exists(marker))
-        finally:
-            os.unlink(path)
-
-
 class TestDivergence(unittest.TestCase):
     def test_flags_reward_hacking(self):
         rows = make_rows([0.50, 0.55, 0.60, 0.65, 0.70],

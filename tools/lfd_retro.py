@@ -16,6 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lfd_common  # noqa: E402
+import lfd_contract  # noqa: E402
 
 
 def main():
@@ -31,8 +32,10 @@ def main():
     if not rows:
         sys.exit(f"no logged runs for {args.target} — nothing to retro")
 
-    config_path = os.path.join(target_dir, "config.env")
-    config = lfd_common.parse_config_env(config_path) if os.path.isfile(config_path) else {}
+    try:
+        config = lfd_contract.load_target(target_dir)
+    except lfd_contract.ContractError as exc:
+        sys.exit(f"invalid target contract: {exc}")
     try:
         window = lfd_common.config_int(config, "DIVERGENCE_WINDOW_CYCLES", minimum=2)
         floor = lfd_common.config_float(config, "PROBE_FLOOR", minimum=0, maximum=1)

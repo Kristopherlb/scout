@@ -18,6 +18,7 @@ cycles to accumulate without an intentional architecture decision.
 - [REQ-002] Python runtime modules under `tools/` and `ops/` MUST form a directed acyclic graph.
 - [REQ-003] Python command modules under `tools/` MUST NOT import Python operations adapters under `ops/`.
 - [REQ-004] `bin/lfd` SHOULD remain a thin composition root that delegates behavior to command modules.
+- [REQ-005] `tools/lfd_contract.py` MUST NOT import Scout command modules or operations adapters.
 
 ## Success Metrics
 

@@ -28,7 +28,7 @@ jobs:
         run: |
           # Hosted runners have no SSH key. Derive the current GitHub host from
           # runner configuration and rewrite that host's SSH clone route to
-          # token-authenticated HTTPS. Target config.env URLs stay unchanged.
+          # token-authenticated HTTPS. Target contract URLs stay unchanged.
           if [ -n "${EVAL_REPO_STATUS_TOKEN:-}" ]; then
             : "${GITHUB_SERVER_URL:?GitHub runner did not provide GITHUB_SERVER_URL}"
             case "$GITHUB_SERVER_URL" in
@@ -41,7 +41,7 @@ jobs:
               "git@${GITHUB_HOST}:"
           fi
           for t in targets/*/; do
-            [ -f "$t/config.env" ] || continue
+            [ -f "$t/target.json" ] || continue
             bash ops/poll-and-score.sh "$t"
           done
 

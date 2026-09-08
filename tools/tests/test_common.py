@@ -4,6 +4,7 @@ These exercise the helpers in-process (the pipeline hits them via
 subprocess, which line coverage can't see) so the module the whole design
 leans on stays measurably covered."""
 import os
+import json
 import shutil
 import sys
 import tempfile
@@ -13,9 +14,10 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 HUB_ROOT = os.path.abspath(os.path.join(TESTS_DIR, "..", ".."))
 sys.path.insert(0, os.path.join(HUB_ROOT, "tools"))
 import lfd_common  # noqa: E402
+import lfd_contract  # noqa: E402
 
 
-class TestRequiredConfig(unittest.TestCase):
+class TestContractAccess(unittest.TestCase):
     def test_value_requires_presence_and_nonempty_by_default(self):
         self.assertEqual(lfd_common.config_value({"KEY": "value"}, "KEY"), "value")
         with self.assertRaises(lfd_common.ConfigError):
@@ -62,13 +64,14 @@ class TestLogIO(unittest.TestCase):
 
 
 class TestIterTargets(unittest.TestCase):
-    def test_yields_only_dirs_with_config(self):
+    def test_yields_only_dirs_with_contract(self):
         hub = tempfile.mkdtemp()
         try:
             good = os.path.join(hub, "targets", "good")
             os.makedirs(good)
-            with open(os.path.join(good, "config.env"), "w") as f:
-                f.write('STATUS="active"\n')
+            with open(os.path.join(good, "target.json"), "w") as f:
+                json.dump(lfd_contract.new_contract(
+                    "good", "https://github.com/example/good.git"), f)
             os.makedirs(os.path.join(hub, "targets", "no_config"))
             names = [n for n, _, _ in lfd_common.iter_targets(hub)]
             self.assertEqual(names, ["good"])
@@ -85,15 +88,20 @@ class TestIterTargets(unittest.TestCase):
 
 class TestActivationBlockers(unittest.TestCase):
     def test_non_active_never_blocked(self):
+        contract = lfd_contract.new_contract(
+            "demo", "https://github.com/example/demo.git")
         self.assertEqual(
-            lfd_common.activation_blockers({"STATUS": "onboarding"}, "/nope"), [])
+            lfd_common.activation_blockers(contract, "/nope"), [])
 
     def test_active_facade_lists_all_three(self):
         d = tempfile.mkdtemp()
         try:
             os.makedirs(os.path.join(d, "harness"))
+            contract = lfd_contract.new_contract(
+                "demo", "https://github.com/example/demo.git")
+            contract["lifecycle"]["status"] = "active"
             blockers = lfd_common.activation_blockers(
-                {"STATUS": "active", "BUILD_CMD": "", "HEALTH_CHECK": ""}, d)
+                contract, d)
             joined = " ".join(blockers).lower()
             self.assertIn("liveness", joined)
             self.assertIn("audit", joined)

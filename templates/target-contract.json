@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "identity": {
+    "name": "template",
+    "repository_url": "https://github.com/example/template.git"
+  },
+  "lifecycle": {
+    "status": "onboarding"
+  },
+  "holdout": {
+    "tag_prefix": "holdout-check-",
+    "min_hours_between": 2,
+    "max_runs": 100
+  },
+  "detectors": {
+    "divergence": {
+      "window_cycles": 5,
+      "enforcement": "advisory"
+    },
+    "probe": {
+      "mode": "every-k",
+      "every_k": 3,
+      "floor": 0.8,
+      "enforcement": "advisory"
+    },
+    "coverage_variance": {
+      "floor": 0.2,
+      "enforcement": "advisory"
+    }
+  },
+  "liveness": {
+    "build_command": "",
+    "boot_command": "",
+    "health_check": "",
+    "exemption": "",
+    "timeout_seconds": 600
+  },
+  "sandbox": {
+    "backend": "docker",
+    "image": "python:3-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6",
+    "cpus": 2,
+    "memory": "2g",
+    "pids_limit": 512
+  },
+  "executor": {
+    "model": ""
+  },
+  "notes": "Review every operational value before activation."
+}

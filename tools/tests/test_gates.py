@@ -16,6 +16,7 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 HUB_ROOT = os.path.abspath(os.path.join(TESTS_DIR, "..", ".."))
 sys.path.insert(0, os.path.join(HUB_ROOT, "tools"))
 import lfd_common  # noqa: E402
+import lfd_contract  # noqa: E402
 
 
 def write(path, content):
@@ -25,23 +26,28 @@ def write(path, content):
 
 
 class TestLivenessState(unittest.TestCase):
+    def contract(self):
+        return lfd_contract.new_contract(
+            "demo", "https://github.com/example/demo.git")
+
     def test_configured_when_build_set(self):
-        self.assertEqual(lfd_common.liveness_state(
-            {"BUILD_CMD": "make", "HEALTH_CHECK": ""})[0], "configured")
+        contract = self.contract()
+        contract["liveness"]["build_command"] = "make"
+        self.assertEqual(lfd_common.liveness_state(contract)[0], "configured")
 
     def test_configured_when_health_set(self):
-        self.assertEqual(lfd_common.liveness_state(
-            {"BUILD_CMD": "", "HEALTH_CHECK": "curl localhost"})[0], "configured")
+        contract = self.contract()
+        contract["liveness"]["health_check"] = "curl localhost"
+        self.assertEqual(lfd_common.liveness_state(contract)[0], "configured")
 
     def test_exempt_only_with_reason(self):
-        self.assertEqual(lfd_common.liveness_state(
-            {"LIVENESS_EXEMPT": "pure library, no entrypoint"})[0], "exempt")
+        contract = self.contract()
+        contract["liveness"]["exemption"] = "pure library, no entrypoint"
+        self.assertEqual(lfd_common.liveness_state(contract)[0], "exempt")
 
     def test_unset_is_the_failure(self):
         # empty-by-default is exactly the silent-skip hole we're closing
-        self.assertEqual(lfd_common.liveness_state(
-            {"BUILD_CMD": "", "HEALTH_CHECK": "", "LIVENESS_EXEMPT": ""})[0], "unset")
-        self.assertEqual(lfd_common.liveness_state({})[0], "unset")
+        self.assertEqual(lfd_common.liveness_state(self.contract())[0], "unset")
 
 
 class TestAuditState(unittest.TestCase):
@@ -129,11 +135,13 @@ class TestActivationGateIntegration(unittest.TestCase):
         shutil.rmtree(self.hub)
 
     def configure(self, **overrides):
-        cfg = {"STATUS": "active", "BUILD_CMD": "make", "HEALTH_CHECK": "",
-               "LIVENESS_EXEMPT": ""}
-        cfg.update(overrides)
-        write(os.path.join(self.tdir, "config.env"),
-              "".join(f'{k}="{v}"\n' for k, v in cfg.items()))
+        contract = lfd_contract.new_contract("demo", self.tdir)
+        contract["lifecycle"]["status"] = overrides.pop("STATUS", "active")
+        contract["liveness"]["build_command"] = overrides.pop("BUILD_CMD", "make")
+        contract["liveness"]["health_check"] = overrides.pop("HEALTH_CHECK", "")
+        contract["liveness"]["exemption"] = overrides.pop("LIVENESS_EXEMPT", "")
+        self.assertFalse(overrides)
+        write(os.path.join(self.tdir, "target.json"), contract)
         write(os.path.join(self.tdir, "audit-report.json"),
               {"verdict": "PASS", "harness_version": self.hv})
         write(os.path.join(self.tdir, "calibration-report.json"),
@@ -225,20 +233,17 @@ class TestPublicReleaseGate(unittest.TestCase):
         shutil.rmtree(self.hub)
 
     def test_synthetic_fixture_is_allowed(self):
-        write(os.path.join(self.hub, "targets", "_example", "config.env"),
-              'STATUS="example"\n')
+        write(os.path.join(self.hub, "targets", "_example", "target.json"), {})
         self.assertEqual(self.ci_checks.check_public_release(self.hub), [])
 
     def test_real_target_directory_is_blocked(self):
-        write(os.path.join(self.hub, "targets", "customer-eval", "config.env"),
-              'STATUS="onboarding"\n')
+        write(os.path.join(self.hub, "targets", "customer-eval", "target.json"), {})
         failures = self.ci_checks.check_public_release(self.hub)
         self.assertEqual(len(failures), 1)
         self.assertIn("targets/customer-eval", failures[0])
 
     def test_underscore_prefixed_real_target_is_blocked(self):
-        write(os.path.join(self.hub, "targets", "_private", "config.env"),
-              'STATUS="onboarding"\n')
+        write(os.path.join(self.hub, "targets", "_private", "target.json"), {})
         failures = self.ci_checks.check_public_release(self.hub)
         self.assertTrue(any("targets/_private" in failure for failure in failures))
 

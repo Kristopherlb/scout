@@ -29,45 +29,21 @@ TARGET_NAME="$(basename "$TARGET_DIR")"
 LOG="$TARGET_DIR/log.jsonl"
 LOG_UTILS="$HUB_ROOT/ops/log_utils.py"
 SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
+WORKDIR=$(mktemp -d)
+trap 'rm -rf "$WORKDIR"' EXIT
 
-# config.env is hub-committed and human-edited — trusted input.
-# shellcheck disable=SC1091
-source "$TARGET_DIR/config.env"
-
-require_config_var() {
-  local name="$1"
-  if [ -z "${!name+x}" ]; then
-    echo "[$TARGET_NAME] ERROR: required config variable $name is missing" >&2
-    exit 2
-  fi
-}
-
-for name in TARGET_REPO_URL HOLDOUT_TAG_PREFIX STATUS \
-  MIN_HOURS_BETWEEN_HOLDOUT DIVERGENCE_WINDOW_CYCLES \
-  BUDGET_MAX_HOLDOUT_RUNS PROBE_ON_HOLDOUT PROBE_EVERY_K PROBE_FLOOR \
-  LIVENESS_TIMEOUT LFD_SANDBOX SANDBOX_IMAGE SANDBOX_CPUS \
-  SANDBOX_MEMORY SANDBOX_PIDS_LIMIT; do
-  require_config_var "$name"
-done
-
-for name in TARGET_REPO_URL HOLDOUT_TAG_PREFIX STATUS LFD_SANDBOX \
-  SANDBOX_IMAGE SANDBOX_CPUS SANDBOX_MEMORY SANDBOX_PIDS_LIMIT; do
-  if [ -z "${!name}" ]; then
-    echo "[$TARGET_NAME] ERROR: required config variable $name is empty" >&2
-    exit 2
-  fi
-done
-
-case "$STATUS" in onboarding|active|paused|retired|example) ;; *)
-  echo "[$TARGET_NAME] ERROR: invalid STATUS=$STATUS" >&2; exit 2 ;; esac
-case "$PROBE_ON_HOLDOUT" in off|always|every-k|on-divergence) ;; *)
-  echo "[$TARGET_NAME] ERROR: invalid PROBE_ON_HOLDOUT=$PROBE_ON_HOLDOUT" >&2; exit 2 ;; esac
-case "$LFD_SANDBOX" in auto|docker|sandbox-exec|none) ;; *)
-  echo "[$TARGET_NAME] ERROR: invalid LFD_SANDBOX=$LFD_SANDBOX" >&2; exit 2 ;; esac
-if [[ ! "$SANDBOX_IMAGE" =~ @sha256:[0-9a-f]{64}$ ]]; then
-  echo "[$TARGET_NAME] ERROR: SANDBOX_IMAGE must be pinned by sha256 digest" >&2
+# The Python contract module validates the document once and emits a fixed,
+# NUL-delimited adapter vocabulary. Values are data; this script never sources
+# or evaluates target configuration.
+CONTRACT_DATA="$WORKDIR/contract.bin"
+if ! python3 "$HUB_ROOT/tools/lfd_contract.py" shell \
+    --target-dir "$TARGET_DIR" > "$CONTRACT_DATA"; then
   exit 2
 fi
+while IFS= read -r -d '' NAME && IFS= read -r -d '' VALUE; do
+  printf -v "$NAME" '%s' "$VALUE"
+  export "$NAME"
+done < "$CONTRACT_DATA"
 
 if [ "$STATUS" != "active" ]; then
   echo "[$TARGET_NAME] STATUS=$STATUS — skipping (only 'active' targets are polled)"
@@ -89,8 +65,6 @@ if [ "$ROW_COUNT" -ge "$BUDGET_MAX_HOLDOUT_RUNS" ]; then
 fi
 
 POLL_START=$SECONDS
-WORKDIR=$(mktemp -d)
-trap 'rm -rf "$WORKDIR"' EXIT
 
 git clone --quiet --bare "$TARGET_REPO_URL" "$WORKDIR/target.git"
 

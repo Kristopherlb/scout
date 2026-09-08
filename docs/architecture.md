@@ -12,7 +12,7 @@ The current layout uses a partial inward dependency boundary:
 
 | Layer | Current location | Dependency rule |
 |---|---|---|
-| Inner policy | `tools/lfd_common.py` | imports no Scout command or operations adapter |
+| Inner policy | `tools/lfd_common.py`, `tools/lfd_contract.py` | import no Scout command or operations adapter |
 | Application commands | other `tools/*.py` | may depend on policy, not Python adapters in `ops/` |
 | Operations adapters | `ops/`, workflows | may depend inward; own privileged I/O and integration |
 | Composition root | `bin/lfd` | routes requests and delegates behavior |
@@ -39,45 +39,32 @@ source, but private target commits must never flow back into public history.
 
 | Path | Committed? | Purpose |
 |---|---|---|
-| `config.env` | yes | the only hand-edited file; see fields below |
+| `target.json` | yes | strictly validated operational contract; see fields below |
 | `eval/dev/` | yes | dev suite (also copied to the target repo) |
 | `eval/holdout/` | yes | holdout cases with embedded canaries — **never leaves the hub** |
 | `canary-list.json` | yes | per-run canary registry (proof-of-access detection) |
 | `harness/score-holdout.sh` | yes | per-target scorer; two-stage contract |
 | `harness/probe-holdout.sh` | yes | per-target holdout mutation probe |
 | `log.jsonl` | yes | append-only scoring history; single source of truth |
-| `audit-report.json` | yes | Phase 8.5 audit output, stamped by `bin/lfd audit` with the audited `harness_version`; must say PASS and match the current harness before `STATUS="active"` |
-| `calibration-report.json` | yes | Phase 6 known-good/known-bad scores + intervals; the two must not overlap; required before `STATUS="active"` |
+| `audit-report.json` | yes | Phase 8.5 audit output, stamped by `bin/lfd audit` with the audited `harness_version`; must say PASS and match the current harness before active status |
+| `calibration-report.json` | yes | Phase 6 known-good/known-bad scores + intervals; the two must not overlap; required before active status |
 | `retros/` | yes | post-run retrospectives (`bin/lfd retro`) |
 | `runs/` | **no** (gitignored) | captured Stage-1 outputs per tag, for `bin/lfd review` |
 | `goal.md` | yes | the emitted optimization target (copied to the target repo at launch) |
 
-### config.env fields
+### `target.json` fields
 
-- `TARGET_NAME`, `TARGET_REPO_URL`, `HOLDOUT_TAG_PREFIX`
-- `STATUS` — `onboarding | active | paused | retired | example`; only
-  `active` is polled; CI blocks `active` without `audit-report.json`
-- `MIN_HOURS_BETWEEN_HOLDOUT` — rate limit, measured off the last log row's
-  timestamp
-- `DIVERGENCE_WINDOW_CYCLES` — window for the reward-hacking detector
-- `BUDGET_MAX_HOLDOUT_RUNS` — hard cap on total scored runs
-- `PROBE_ON_HOLDOUT` (`off | always | every-k | on-divergence`),
-  `PROBE_EVERY_K`, `PROBE_FLOOR`
-- `BUILD_CMD`, `BOOT_CMD`, `HEALTH_CHECK`, `LIVENESS_TIMEOUT` — the
-  anti-vaporware gate, run sandboxed in a fresh checkout
-- `LIVENESS_EXEMPT` — a written reason that intentionally skips the
-  liveness gate (e.g. a pure library with no entrypoint). Activation is
-  blocked if neither the gate nor an exemption is set — a skipped gate is
-  never a silent default.
-- `LFD_SANDBOX` — explicit isolation backend; active targets require `docker`.
-  `auto`, `sandbox-exec`, and `none` are test/development-only modes
-- `SANDBOX_IMAGE`, `SANDBOX_CPUS`, `SANDBOX_MEMORY`,
-  `SANDBOX_PIDS_LIMIT` — digest-pinned image and resource policy for Stage 1
-- `EXECUTOR_MODEL` — declared model; status flags drift vs reported
+The versioned contract groups operational values under `identity`, `lifecycle`,
+`holdout`, `detectors`, `liveness`, `sandbox`, and `executor`. Detector entries
+carry an explicit `advisory | blocking` enforcement policy. Unknown or missing
+fields, unsafe repository locations, mutable sandbox images, and legacy
+`config.env` files are rejected. `tools/lfd_contract.py` is the only loader;
+shell adapters receive a fixed NUL-delimited vocabulary and never source or
+evaluate configuration.
 
 ## The poll flow (`ops/poll-and-score.sh <target-dir>`)
 
-1. Skip unless `STATUS="active"`; skip past the run budget.
+1. Skip unless `lifecycle.status` is `active`; skip past the run budget.
 2. Bare-clone the target; list `holdout-check-*` tags oldest→newest.
 3. Per tag: dedup against `log.jsonl` (JSON parse, not grep); rate-limit off
    the last row's timestamp.
@@ -85,11 +72,11 @@ source, but private target commits must never flow back into public history.
    agent-supplied field becomes a validated float/enum or null. Nothing from
    the tag is ever interpolated into code.
 5. Clone the **pinned SHA** (tags can't race).
-6. **Liveness gate**, sandboxed: `BUILD_CMD` → `BOOT_CMD` (backgrounded) →
-   `HEALTH_CHECK`. Failure ⇒ row with `holdout_score: 0`,
+6. **Liveness gate**, sandboxed: configured build → boot (backgrounded) →
+   health-check commands. Failure ⇒ row with `holdout_score: 0`,
    `liveness: "liveness_failed"`; no eval cases run.
 7. **Score** via `harness/score-holdout.sh` (contract below).
-8. **Probe** per `PROBE_ON_HOLDOUT` cadence via `harness/probe-holdout.sh`.
+8. **Probe** per the contract cadence via `harness/probe-holdout.sh`.
 9. Append ONE row via `ops/log_utils.py append` (the only log writer).
 10. Divergence check over the same log; post commit status (score ± CI +
     divergence flag + boolean probe verdict — nothing else); write a
@@ -118,20 +105,20 @@ hub; the agent sees only ok/below-floor.
 ## Activation gates (anti-Potemkin)
 
 CI (`tools/ci_checks.py activation-gate`) and `bin/lfd status` refuse to let
-a target run as `active` on a facade. A `STATUS="active"` target must clear
+a target run as `active` on a facade. An active target must clear
 all three, each a place a Potemkin eval could otherwise slip through a gate
 that merely *exists* but was silently skipped:
 
 | Gate | Blocks activation when | Detector |
 |---|---|---|
-| **liveness** | no `BUILD_CMD`/`HEALTH_CHECK` and no `LIVENESS_EXEMPT` reason | `lfd_common.liveness_state` |
+| **liveness** | no configured build/health command and no written exemption | `lfd_common.liveness_state` |
 | **audit** | `audit-report.json` missing, not PASS, or its `harness_version` ≠ the current harness (audited-then-rewritten) | `lfd_common.audit_state` |
 | **calibration** | `calibration-report.json` missing, malformed, or good/bad intervals overlap (scorer can't separate them) | `lfd_common.calibration_state` |
 
 Non-active targets are shown these states but never blocked.
 
 **Fixture targets**: an underscore-prefixed name (e.g. `_example`) marks a
-demo/fixture target. It is never polled (`STATUS="example"`) and is exempt
+demo/fixture target. It is never polled (`lifecycle.status: example`) and is exempt
 from the append-only-log CI check, since its synthetic history is
 regenerated by design. Real targets never start with `_`.
 

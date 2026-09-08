@@ -50,4 +50,6 @@ printf 'rac-core==%s\n' "$RAC_VERSION" | uv pip compile - \
 ```
 
 RAC is maintained by the
-[`asdecided/rac`](https://github.com/asdecided/rac) project.
+[`asdecided/core`](https://github.com/asdecided/core) project. Its
+[normative specification](https://asdecided.com/docs/vendor/spec/SPEC/)
+defines the artifact and validation contract Scout follows.

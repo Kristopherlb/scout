@@ -15,7 +15,7 @@ case "$CMD" in
   poll)        exec bash "$HUB_ROOT/ops/poll-and-score.sh" "$HUB_ROOT/targets/${1:?usage: lfd poll <target>}" ;;
   poll-all)
     for t in "$HUB_ROOT"/targets/*/; do
-      [ -f "$t/config.env" ] && bash "$HUB_ROOT/ops/poll-and-score.sh" "$t"
+      [ -f "$t/target.json" ] && bash "$HUB_ROOT/ops/poll-and-score.sh" "$t"
     done ;;
   audit)      exec python3 "$HUB_ROOT/tools/lfd_audit.py" "$@" --hub-root "$HUB_ROOT" ;;
   canaries)    exec bash "$HUB_ROOT/ops/generate-canaries.sh" "$HUB_ROOT/targets/${1:?usage: lfd canaries <target>}" ;;

@@ -24,7 +24,7 @@ DEP_MANIFESTS = ("requirements.txt", "requirements-dev.txt",
 PUBLIC_FORBIDDEN_ROOT_ARTIFACTS = (".coverage", ".compressibility-history.jsonl")
 PRIVATE_EVAL_FILENAMES = {
     "audit-report.json", "calibration-report.json", "canary-list.json",
-    "config.env", "log.jsonl",
+    "config.env", "target.json", "log.jsonl",
 }
 
 
