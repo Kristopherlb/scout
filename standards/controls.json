@@ -142,6 +142,41 @@
       "evidence": "python3 -m unittest tools.tests.test_onboarding.TestOnboarding.test_doctor_does_not_require_github_credentials_for_local_checks"
     },
     {
+      "control_id": "SCOUT-AUDIT-001",
+      "requirement": "rac/requirements/scout-audit-and-activation.md#REQ-001",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_audit_protocol.TestAuditProtocol.test_mechanical_pass_remains_incomplete"
+    },
+    {
+      "control_id": "SCOUT-AUDIT-002",
+      "requirement": "rac/requirements/scout-audit-and-activation.md#REQ-002",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_audit_protocol.TestAuditProtocol.test_finalize_requires_every_finding"
+    },
+    {
+      "control_id": "SCOUT-AUDIT-003",
+      "requirement": "rac/requirements/scout-audit-and-activation.md#REQ-003",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_audit_protocol.TestAuditProtocol.test_finalize_stamps_six_fresh_hashes"
+    },
+    {
+      "control_id": "SCOUT-AUDIT-004",
+      "requirement": "rac/requirements/scout-audit-and-activation.md#REQ-004",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_audit_protocol.TestAuditProtocol.test_manual_active_edit_is_blocked_without_receipt"
+    },
+    {
+      "control_id": "SCOUT-AUDIT-005",
+      "requirement": "rac/requirements/scout-audit-and-activation.md#REQ-005",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_gates.TestActivationGateIntegration"
+    },
+    {
       "control_id": "SCOUT-CI-002",
       "requirement": "rac/requirements/scout-ci-and-evidence.md#REQ-002",
       "enforcement": "ci",

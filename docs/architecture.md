@@ -48,7 +48,9 @@ source, but private target commits must never flow back into public history.
 | `harness/score-holdout.sh` | yes | per-target scorer; two-stage contract |
 | `harness/probe-holdout.sh` | yes | per-target holdout mutation probe |
 | `log.jsonl` | yes | append-only scoring history; single source of truth |
-| `audit-report.json` | yes | Phase 8.5 audit output, stamped by `bin/lfd audit` with the audited `harness_version`; must say PASS and match the current harness before active status |
+| `audit-mechanical.json` | yes | Deterministic audit evidence; a PASS remains incomplete |
+| `audit-report.json` | yes | Final audit judgment plus six freshness hashes; required before activation |
+| `activation.json` | yes | Hub-issued receipt binding active `target.json` to its final audit |
 | `calibration-report.json` | yes | Phase 6 known-good/known-bad scores + intervals; the two must not overlap; required before active status |
 | `retros/` | yes | post-run retrospectives (`bin/lfd retro`) |
 | `runs/` | **no** (gitignored) | captured Stage-1 outputs per tag, for `bin/lfd review` |
@@ -113,15 +115,16 @@ hub; the agent sees only ok/below-floor.
 ## Activation gates (anti-Potemkin)
 
 CI (`tools/ci_checks.py activation-gate`) and `bin/lfd status` refuse to let
-a target run as `active` on a facade. An active target must clear
-all three, each a place a Potemkin eval could otherwise slip through a gate
-that merely *exists* but was silently skipped:
+a target run as `active` on a facade. `bin/lfd activate` is the sole supported
+active transition and issues a receipt only after the prerequisites pass.
+Runtime revalidates the same evidence before target code executes:
 
 | Gate | Blocks activation when | Detector |
 |---|---|---|
 | **liveness** | no configured build/health command and no written exemption | `lfd_common.liveness_state` |
-| **audit** | `audit-report.json` missing, not PASS, or its `harness_version` ≠ the current harness (audited-then-rewritten) | `lfd_common.audit_state` |
+| **audit** | mechanical-only, missing/failed judgment, or any of six evidence hashes is stale | `lfd_common.audit_state` |
 | **calibration** | `calibration-report.json` missing, malformed, or good/bad intervals overlap (scorer can't separate them) | `lfd_common.calibration_state` |
+| **activation** | receipt missing or no longer matches the active contract and final audit | `lfd_common.activation_receipt_state` |
 
 Non-active targets are shown these states but never blocked.
 

@@ -17,6 +17,7 @@ HUB_ROOT = os.path.abspath(os.path.join(TESTS_DIR, "..", ".."))
 sys.path.insert(0, os.path.join(HUB_ROOT, "tools"))
 import lfd_common  # noqa: E402
 import lfd_contract  # noqa: E402
+import lfd_audit  # noqa: E402
 
 
 def write(path, content):
@@ -54,7 +55,17 @@ class TestAuditState(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
         write(os.path.join(self.dir, "harness", "score-holdout.sh"), "#!/bin/sh\necho v1\n")
-        self.hv = lfd_common.harness_version(os.path.join(self.dir, "harness"))
+        write(os.path.join(self.dir, "goal.md"), "# Goal\n")
+        write(os.path.join(self.dir, "eval", "holdout", "case.json"), {})
+        write(os.path.join(self.dir, "bundle", ".lfd", "bundle-manifest.json"), {})
+        write(os.path.join(self.dir, "calibration-report.json"),
+              {"good_ci": [0.8, 1.0], "bad_ci": [0.0, 0.2]})
+        self.judgment = {
+            "schema_version": 1,
+            "independent_context_attestation": True,
+            "findings": {name: {"verdict": "PASS", "evidence": "reviewed"}
+                         for name in lfd_audit.REQUIRED_FINDINGS},
+        }
 
     def tearDown(self):
         shutil.rmtree(self.dir)
@@ -62,28 +73,38 @@ class TestAuditState(unittest.TestCase):
     def report(self, **kw):
         write(os.path.join(self.dir, "audit-report.json"), kw)
 
+    def final_report(self, verdict="PASS"):
+        report = {
+            "schema_version": 1,
+            "state": "complete",
+            "verdict": verdict,
+            "judgment": self.judgment,
+            "hashes": lfd_common.audit_artifact_hashes(self.dir, self.judgment),
+        }
+        self.report(**report)
+
     def test_missing(self):
         self.assertEqual(lfd_common.audit_state(self.dir)[0], "missing")
 
     def test_failed_verdict(self):
-        self.report(verdict="FAIL", harness_version=self.hv)
+        self.final_report("FAIL")
         self.assertEqual(lfd_common.audit_state(self.dir)[0], "failed")
 
-    def test_accepts_skill_verdict_key(self):
-        self.report(overall_mechanical_verdict="PASS", harness_version=self.hv)
-        self.assertEqual(lfd_common.audit_state(self.dir)[0], "ok")
+    def test_mechanical_only_report_is_incomplete(self):
+        self.report(overall_mechanical_verdict="PASS")
+        self.assertEqual(lfd_common.audit_state(self.dir)[0], "incomplete")
 
     def test_stale_when_harness_changed_since_audit(self):
-        self.report(verdict="PASS", harness_version="deadbeefdeadbeef")
+        self.final_report()
+        write(os.path.join(self.dir, "harness", "score-holdout.sh"), "changed")
         self.assertEqual(lfd_common.audit_state(self.dir)[0], "stale")
 
-    def test_unversioned_report_is_stale(self):
-        # a PASS with no recorded harness_version can't prove freshness
+    def test_unversioned_report_is_incomplete(self):
         self.report(verdict="PASS")
-        self.assertEqual(lfd_common.audit_state(self.dir)[0], "stale")
+        self.assertEqual(lfd_common.audit_state(self.dir)[0], "incomplete")
 
     def test_ok_when_fresh_and_passing(self):
-        self.report(verdict="PASS", harness_version=self.hv)
+        self.final_report()
         self.assertEqual(lfd_common.audit_state(self.dir)[0], "ok")
 
     def test_malformed_json_is_failed(self):
@@ -129,7 +150,9 @@ class TestActivationGateIntegration(unittest.TestCase):
         self.hub = tempfile.mkdtemp()
         self.tdir = os.path.join(self.hub, "targets", "demo")
         write(os.path.join(self.tdir, "harness", "score-holdout.sh"), "#!/bin/sh\n")
-        self.hv = lfd_common.harness_version(os.path.join(self.tdir, "harness"))
+        write(os.path.join(self.tdir, "goal.md"), "# Goal\n")
+        write(os.path.join(self.tdir, "eval", "holdout", "case.json"), {})
+        write(os.path.join(self.tdir, "bundle", ".lfd", "bundle-manifest.json"), {})
 
     def tearDown(self):
         shutil.rmtree(self.hub)
@@ -142,11 +165,25 @@ class TestActivationGateIntegration(unittest.TestCase):
         contract["liveness"]["exemption"] = overrides.pop("LIVENESS_EXEMPT", "")
         self.assertFalse(overrides)
         write(os.path.join(self.tdir, "target.json"), contract)
-        write(os.path.join(self.tdir, "audit-report.json"),
-              {"verdict": "PASS", "harness_version": self.hv})
         write(os.path.join(self.tdir, "calibration-report.json"),
               {"good_score": 0.95, "good_ci": [0.9, 0.99],
                "bad_score": 0.2, "bad_ci": [0.1, 0.3]})
+        judgment = {
+            "schema_version": 1, "independent_context_attestation": True,
+            "findings": {name: {"verdict": "PASS", "evidence": "reviewed"}
+                         for name in lfd_audit.REQUIRED_FINDINGS},
+        }
+        audit = {"schema_version": 1, "state": "complete", "verdict": "PASS",
+                 "judgment": judgment,
+                 "hashes": lfd_common.audit_artifact_hashes(self.tdir, judgment)}
+        write(os.path.join(self.tdir, "audit-report.json"), audit)
+        receipt = {
+            "schema_version": 1,
+            "target_contract_hash": lfd_common.artifact_hash(os.path.join(self.tdir, "target.json")),
+            "audit_report_hash": lfd_common.artifact_hash(os.path.join(self.tdir, "audit-report.json")),
+            "activated_at": "2026-01-01T00:00:00Z",
+        }
+        write(os.path.join(self.tdir, "activation.json"), receipt)
 
     def run_gate(self):
         return subprocess.run(
@@ -171,8 +208,7 @@ class TestActivationGateIntegration(unittest.TestCase):
 
     def test_active_with_stale_audit_blocked(self):
         self.configure()
-        write(os.path.join(self.tdir, "audit-report.json"),
-              {"verdict": "PASS", "harness_version": "staleaaaaaaaaaaa"})
+        write(os.path.join(self.tdir, "goal.md"), "changed")
         res = self.run_gate()
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("audit", res.stdout.lower())
@@ -307,36 +343,39 @@ class TestAppendOnlyLog(unittest.TestCase):
         self.assertEqual(self.ci_checks.check_append_only_log(self.hub, "HEAD~1...HEAD"), [])
 
 
-class TestAuditReportBuilder(unittest.TestCase):
-    """lfd_audit stamps harness_version so audit_state can prove freshness."""
+class TestMechanicalAuditReport(unittest.TestCase):
+    """Mechanical evidence is persisted, but never grants activation."""
 
     def setUp(self):
         sys.path.insert(0, os.path.join(HUB_ROOT, "tools"))
         import lfd_audit
         self.lfd_audit = lfd_audit
         self.dir = tempfile.mkdtemp()
-        write(os.path.join(self.dir, "harness", "score.sh"), "#!/bin/sh\n")
+        write(os.path.join(self.dir, "harness", "score-holdout.sh"), "#!/bin/sh\n")
+        write(os.path.join(self.dir, "goal.md"), "# Goal\n")
+        write(os.path.join(self.dir, "eval", "holdout", "case.json"), {})
+        write(os.path.join(self.dir, "bundle", ".lfd", "bundle-manifest.json"), {})
+        write(os.path.join(self.dir, "calibration-report.json"),
+              {"good_ci": [0.8, 1.0], "bad_ci": [0.0, 0.2]})
 
     def tearDown(self):
         shutil.rmtree(self.dir)
 
-    def test_build_stamps_verdict_and_harness_version(self):
+    def test_pass_is_stamped_incomplete_with_artifact_hashes(self):
         skill_out = {"overall_mechanical_verdict": "PASS",
                      "mechanical_results": [{"item": "x", "verdict": "PASS"}]}
-        report = self.lfd_audit.build_audit_report(self.dir, skill_out)
+        report = self.lfd_audit.write_mechanical_report(self.dir, skill_out)
         self.assertEqual(report["verdict"], "PASS")
-        self.assertEqual(report["harness_version"],
-                         lfd_common.harness_version(os.path.join(self.dir, "harness")))
-        # the stamped report must satisfy the freshness gate
-        write(os.path.join(self.dir, "audit-report.json"), report)
-        self.assertEqual(lfd_common.audit_state(self.dir)[0], "ok")
+        self.assertEqual(report["state"], "incomplete")
+        self.assertEqual(set(report["hashes"]),
+                         {"goal", "eval_manifest", "bundle", "harness", "calibration"})
+        self.assertEqual(lfd_common.audit_state(self.dir)[0], "incomplete")
 
     def test_failing_skill_audit_produces_failed_state(self):
-        report = self.lfd_audit.build_audit_report(
+        report = self.lfd_audit.write_mechanical_report(
             self.dir, {"overall_mechanical_verdict": "FAIL"})
         self.assertEqual(report["verdict"], "FAIL")
-        write(os.path.join(self.dir, "audit-report.json"), report)
-        self.assertEqual(lfd_common.audit_state(self.dir)[0], "failed")
+        self.assertEqual(report["state"], "failed")
 
 
 if __name__ == "__main__":

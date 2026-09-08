@@ -19,7 +19,8 @@ case "$CMD" in
     for t in "$HUB_ROOT"/targets/*/; do
       [ -f "$t/target.json" ] && bash "$HUB_ROOT/ops/poll-and-score.sh" "$t"
     done ;;
-  audit)      exec python3 "$HUB_ROOT/tools/lfd_audit.py" "$@" --hub-root "$HUB_ROOT" ;;
+  audit)       exec python3 "$HUB_ROOT/tools/lfd_audit.py" --hub-root "$HUB_ROOT" "$@" ;;
+  activate)    exec python3 "$HUB_ROOT/tools/lfd_activate.py" --hub-root "$HUB_ROOT" "$@" ;;
   canaries)    exec bash "$HUB_ROOT/ops/generate-canaries.sh" "$HUB_ROOT/targets/${1:?usage: lfd canaries <target>}" ;;
   test)        exec python3 -m unittest discover -s "$HUB_ROOT/tools/tests" -v ;;
   help)
@@ -33,7 +34,10 @@ lfd — LFD eval hub
   lfd onboard <verb> ...             start, inspect, equip, verify, status, or run
   lfd new-target <name> <repo-url>  compatibility alias for `onboard start`
   lfd poll <target> | poll-all      run the scoring poll locally
-  lfd audit <target>                Phase 8.5 mechanical audit for a target
+  lfd audit mechanical <target>     write checkable audit evidence (still incomplete)
+  lfd audit finalize <target>       combine mechanical evidence with judgment
+       --judgment-file PATH
+  lfd activate <target>             transition to active after all gates pass
   lfd canaries <target>             embed fresh canaries in a target's holdout
   lfd review <target> [--k N]       human spot-check: random holdout cases,
                                     expected vs candidate output (hub-side only)

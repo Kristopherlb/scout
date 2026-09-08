@@ -10,21 +10,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lfd_bundle  # noqa: E402
+import lfd_common  # noqa: E402
 import lfd_contract  # noqa: E402
+import lfd_interface  # noqa: E402
 
 
-def envelope(command, target=None, status="ok", stage=None, artifacts=None,
-             errors=None, next_actions=None):
-    return {
-        "schema_version": 1,
-        "command": command,
-        "target": target,
-        "status": status,
-        "stage": stage,
-        "artifacts": artifacts or [],
-        "errors": errors or [],
-        "next_actions": next_actions or [],
-    }
+envelope = lfd_interface.envelope
 
 
 def _write_json(path, document):
@@ -146,8 +137,21 @@ def onboarding_status(target_dir, checkout=None):
     if checkout and not os.path.isfile(os.path.join(os.path.abspath(checkout),
                                                     lfd_bundle.MANIFEST_PATH)):
         return {"stage": "needs_equip", "next_actions": ["onboard equip"]}
-    if not os.path.isfile(os.path.join(target_dir, "audit-report.json")):
+    audit, _ = lfd_common.audit_state(target_dir)
+    if audit == "missing":
         return {"stage": "needs_audit", "next_actions": ["audit mechanical"]}
+    if audit == "incomplete":
+        return {"stage": "needs_judgment", "next_actions": ["audit finalize"]}
+    if audit != "ok":
+        return {"stage": "audit_invalid", "next_actions": ["audit mechanical"]}
+    calibration, _ = lfd_common.calibration_state(target_dir)
+    if calibration != "ok":
+        return {"stage": "calibration_invalid", "next_actions": ["run calibration"]}
+    contract = lfd_contract.load_target(target_dir)
+    if contract["lifecycle"]["status"] == "active":
+        blockers = lfd_common.activation_blockers(contract, target_dir)
+        return ({"stage": "active", "next_actions": []} if not blockers else
+                {"stage": "activation_invalid", "next_actions": ["activate"]})
     return {"stage": "ready_for_activation", "next_actions": ["activate"]}
 
 
