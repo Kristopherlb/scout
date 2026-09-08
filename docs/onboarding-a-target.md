@@ -83,16 +83,24 @@ workflow has no cross-repository dependency.
 ## 4. Audit, calibrate, and activate
 
 ```bash
-bin/lfd audit myrepo
+bin/lfd audit mechanical myrepo
+bin/lfd audit finalize myrepo --judgment-file /path/to/judgment.json
+bin/lfd activate myrepo
 ```
 
-Commit `targets/myrepo/audit-report.json`. The report must pass and its stamped
-`harness_version` must match the current harness. Add a calibration report with
-non-overlapping known-good and known-bad intervals. Then choose the probe
-cadence and configure the sandbox image before setting active status.
+The mechanical command writes deterministic evidence but deliberately remains
+incomplete. Finalization requires a fresh-context judgment with explicit
+PASS/FAIL findings and evidence for leakage, Goodhart fences, calibration,
+escalation, and blinding. The attestation records process; it is not proof that
+the context was independent.
 
-CI blocks activation when the liveness, audit, or calibration gate is missing,
-failed, or stale.
+The final report binds the goal, eval manifest, agent bundle, private harness,
+calibration, and judgment with SHA-256 hashes. `bin/lfd activate` is the only
+supported way to set active status and writes an activation receipt. Editing
+`target.json` to active by hand remains blocked.
+
+CI and polling block active targets when liveness, audit, calibration, or the
+activation receipt is missing, failed, malformed, or stale.
 
 ## 5. Configure private automation
 

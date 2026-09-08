@@ -23,7 +23,8 @@ DEP_MANIFESTS = ("requirements.txt", "requirements-dev.txt",
                  "package.json", "Gemfile", "Cargo.toml", "go.mod")
 PUBLIC_FORBIDDEN_ROOT_ARTIFACTS = (".coverage", ".compressibility-history.jsonl")
 PRIVATE_EVAL_FILENAMES = {
-    "audit-report.json", "calibration-report.json", "canary-list.json",
+    "activation.json", "audit-mechanical.json", "audit-report.json",
+    "calibration-report.json", "canary-list.json",
     "config.env", "target.json", "log.jsonl",
 }
 
@@ -58,9 +59,7 @@ def _pyproject_declares_runtime_deps(path):
 
 
 def check_activation_gate(hub_root):
-    """An 'active' target must clear liveness, audit (truth + freshness),
-    and calibration gates — the three silent-skip holes that let a facade
-    look production-ready."""
+    """An active target must clear current gates and its activation receipt."""
     failures = []
     for name, config, target_dir in lfd_common.iter_targets(hub_root):
         for blocker in lfd_common.activation_blockers(config, target_dir):

@@ -7,6 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lfd_onboard  # noqa: E402
+import lfd_interface  # noqa: E402
 
 
 def main():
@@ -19,8 +20,8 @@ def main():
     args = parser.parse_args()
     result = lfd_onboard.doctor(args.hub_root, args.target, args.checkout,
                                 args.require_github)
-    document = lfd_onboard.envelope("doctor", args.target, result["status"],
-                                   artifacts=result["checks"])
+    document = lfd_interface.envelope("doctor", args.target, result["status"],
+                                      artifacts=result["checks"])
     if args.json:
         print(json.dumps(document, sort_keys=True))
     else:

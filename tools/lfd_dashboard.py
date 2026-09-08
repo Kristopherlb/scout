@@ -216,7 +216,7 @@ def build_data(hub_root):
             "budget": lfd_common.config_int(
                 config, "BUDGET_MAX_HOLDOUT_RUNS", minimum=1),
             "probe_floor": floor,
-            "audited": os.path.isfile(os.path.join(target_dir, "audit-report.json")),
+            "audited": lfd_common.audit_state(target_dir)[0] == "ok",
             "divergence": lfd_common.check_divergence(rows, window),
             "liveness_failed": bool(rows) and rows[-1].get("liveness") == "liveness_failed",
             "probe_breach": bool(probe_rows) and bool(

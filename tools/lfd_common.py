@@ -17,6 +17,10 @@ AGENT_NUMERIC_FIELDS = (
 )
 # model_id is agent-reported free text; constrain to a safe charset.
 MODEL_ID_RE = re.compile(r"^[A-Za-z0-9._:/-]{1,128}$")
+AUDIT_FINDINGS = {
+    "leakage_estimate", "goodhart_fence_matching", "calibration_quality",
+    "escalation_wiring", "blinding_verification",
+}
 
 
 def config_value(config, key, *, allow_empty=False):
@@ -164,6 +168,52 @@ def harness_version(harness_dir):
     return h.hexdigest()[:16]
 
 
+def artifact_hash(path):
+    """SHA-256 a file or a directory tree with stable relative paths."""
+    digest = hashlib.sha256()
+    if os.path.isfile(path):
+        with open(path, "rb") as stream:
+            for chunk in iter(lambda: stream.read(65536), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    if os.path.isdir(path):
+        for root, directories, files in os.walk(path):
+            directories.sort()
+            for name in sorted(files):
+                file_path = os.path.join(root, name)
+                relative = os.path.relpath(file_path, path).replace(os.sep, "/")
+                digest.update(relative.encode("utf-8"))
+                digest.update(b"\0")
+                with open(file_path, "rb") as stream:
+                    for chunk in iter(lambda: stream.read(65536), b""):
+                        digest.update(chunk)
+                digest.update(b"\0")
+        return digest.hexdigest()
+    raise FileNotFoundError(path)
+
+
+def json_hash(document):
+    """SHA-256 a JSON-compatible value using canonical serialization."""
+    encoded = json.dumps(document, sort_keys=True, separators=(",", ":"),
+                         ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def audit_artifact_hashes(target_dir, judgment=None):
+    """Return the audit protocol's named evidence hashes."""
+    paths = {
+        "goal": os.path.join(target_dir, "goal.md"),
+        "eval_manifest": os.path.join(target_dir, "eval"),
+        "bundle": os.path.join(target_dir, "bundle", ".lfd", "bundle-manifest.json"),
+        "harness": os.path.join(target_dir, "harness"),
+        "calibration": os.path.join(target_dir, "calibration-report.json"),
+    }
+    hashes = {name: artifact_hash(path) for name, path in paths.items()}
+    if judgment is not None:
+        hashes["judgment"] = json_hash(judgment)
+    return hashes
+
+
 def iter_targets(hub_root):
     """Yield validated registry entries from the target contract module."""
     yield from lfd_contract.iter_targets(hub_root)
@@ -219,31 +269,48 @@ def liveness_state(config):
 
 
 def audit_state(target_dir):
-    """Truth + freshness of the Phase 8.5 audit report.
-
-    ('missing'/'failed'/'stale'/'ok', detail). 'stale' means the harness
-    changed since the audit (or the report never recorded which harness it
-    audited) — an audited-then-rewritten scorer is a certified Potemkin.
-    """
+    """Truth and freshness of the finalized audit protocol."""
     path = os.path.join(target_dir, "audit-report.json")
     if not os.path.isfile(path):
-        return "missing", "no audit-report.json (run `bin/lfd audit <target>`)"
+        if os.path.isfile(os.path.join(target_dir, "audit-mechanical.json")):
+            return "incomplete", "mechanical audit exists but independent judgment is not finalized"
+        return "missing", "no audit-report.json (run `bin/lfd audit mechanical <target>`)"
     try:
         with open(path) as f:
             report = json.load(f)
-    except (json.JSONDecodeError, ValueError):
+    except (OSError, json.JSONDecodeError, ValueError):
         return "failed", "audit-report.json is not valid JSON"
-    verdict = report.get("verdict") or report.get("overall_mechanical_verdict")
+    if report.get("schema_version") != 1 or report.get("state") != "complete":
+        return "incomplete", "audit report is not a complete version-1 finalization"
+    verdict = report.get("verdict")
     if verdict != "PASS":
         return "failed", f"audit verdict is {verdict!r}, not PASS"
-    recorded = report.get("harness_version")
-    current = harness_version(os.path.join(target_dir, "harness"))
-    if not recorded:
-        return "stale", "audit-report.json records no harness_version — can't prove it matches the current harness"
+    judgment = report.get("judgment")
+    recorded = report.get("hashes")
+    if not isinstance(judgment, dict) or not isinstance(recorded, dict):
+        return "failed", "final audit is missing judgment evidence or artifact hashes"
+    if (set(judgment) != {"schema_version", "independent_context_attestation", "findings"}
+            or judgment.get("schema_version") != 1
+            or judgment.get("independent_context_attestation") is not True
+            or not isinstance(judgment.get("findings"), dict)
+            or set(judgment["findings"]) != AUDIT_FINDINGS):
+        return "failed", "final audit contains malformed or incomplete judgment evidence"
+    for finding in judgment["findings"].values():
+        if (not isinstance(finding, dict)
+                or set(finding) != {"verdict", "evidence"}
+                or finding.get("verdict") != "PASS"
+                or not isinstance(finding.get("evidence"), str)
+                or not finding["evidence"].strip()):
+            return "failed", "final audit contains a failed or unsupported finding"
+    try:
+        current = audit_artifact_hashes(target_dir, judgment)
+    except FileNotFoundError as exc:
+        return "stale", f"audited artifact is missing: {exc}"
     if recorded != current:
-        return "stale", (f"harness changed since audit (audited {recorded}, "
-                         f"current {current}) — re-run `bin/lfd audit`")
-    return "ok", f"audited at harness {current}"
+        changed = sorted(name for name in set(recorded) | set(current)
+                         if recorded.get(name) != current.get(name))
+        return "stale", f"audited artifacts changed: {', '.join(changed)}"
+    return "ok", "final audit PASS matches all six evidence hashes"
 
 
 def calibration_state(target_dir):
@@ -272,11 +339,8 @@ def calibration_state(target_dir):
     return "ok", f"good [{good_ci[0]}, {good_ci[1]}] clears bad [{bad_ci[0]}, {bad_ci[1]}]"
 
 
-def activation_blockers(config, target_dir):
-    """Every reason an 'active' target should be blocked. Empty = clear.
-    Non-active targets are never gated (return [])."""
-    if config_value(config, "STATUS") != "active":
-        return []
+def activation_prerequisite_blockers(config, target_dir):
+    """Every liveness, audit, and calibration reason activation must stop."""
     blockers = []
     lv, detail = liveness_state(config)
     if lv == "unset":
@@ -287,6 +351,45 @@ def activation_blockers(config, target_dir):
     cal, detail = calibration_state(target_dir)
     if cal != "ok":
         blockers.append(f"calibration {cal} — {detail}")
+    return blockers
+
+
+def activation_receipt_state(config, target_dir):
+    """Validate the hub-issued receipt proving the active transition."""
+    path = os.path.join(target_dir, "activation.json")
+    if not os.path.isfile(path):
+        return "missing", "activation receipt is missing; use `bin/lfd activate`"
+    try:
+        with open(path) as stream:
+            receipt = json.load(stream)
+    except (OSError, json.JSONDecodeError):
+        return "invalid", "activation receipt is not valid JSON"
+    expected_keys = {"schema_version", "target_contract_hash", "audit_report_hash",
+                     "activated_at"}
+    if set(receipt) != expected_keys or receipt.get("schema_version") != 1:
+        return "invalid", "activation receipt has an unsupported shape or version"
+    contract_path = os.path.join(target_dir, "target.json")
+    audit_path = os.path.join(target_dir, "audit-report.json")
+    try:
+        current_contract = artifact_hash(contract_path)
+        current_audit = artifact_hash(audit_path)
+    except FileNotFoundError as exc:
+        return "stale", f"activation evidence is missing: {exc}"
+    if receipt["target_contract_hash"] != current_contract:
+        return "stale", "target contract changed after activation"
+    if receipt["audit_report_hash"] != current_audit:
+        return "stale", "audit report changed after activation"
+    return "ok", "activation receipt matches contract and audit"
+
+
+def activation_blockers(config, target_dir):
+    """Every reason an active target must be blocked. Non-active is ungated."""
+    if config_value(config, "STATUS") != "active":
+        return []
+    blockers = activation_prerequisite_blockers(config, target_dir)
+    receipt, detail = activation_receipt_state(config, target_dir)
+    if receipt != "ok":
+        blockers.append(f"activation receipt {receipt} — {detail}")
     return blockers
 
 

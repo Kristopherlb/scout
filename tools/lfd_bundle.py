@@ -42,8 +42,9 @@ def _private_source(relative):
     name = parts[-1]
     if any(part in {"holdout", "runs"} for part in parts):
         return True
-    if name in {"canary-list.json", "log.jsonl", "audit-report.json",
-                "calibration-report.json", "score-holdout.sh", "probe-holdout.sh"}:
+    if name in {"activation.json", "audit-mechanical.json", "audit-report.json",
+                "canary-list.json", "log.jsonl", "calibration-report.json",
+                "score-holdout.sh", "probe-holdout.sh"}:
         return True
     if parts[:2] == ["eval", "dev"] and any(word in name for word in ("answer", "holdout", "canary")):
         return True
