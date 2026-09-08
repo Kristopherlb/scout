@@ -42,7 +42,7 @@ if ! python3 "$HUB_ROOT/tools/lfd_contract.py" shell \
 fi
 while IFS= read -r -d '' NAME && IFS= read -r -d '' VALUE; do
   printf -v "$NAME" '%s' "$VALUE"
-  export "$NAME"
+  export "${NAME?}"
 done < "$CONTRACT_DATA"
 
 if [ "$STATUS" != "active" ]; then

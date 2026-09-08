@@ -40,8 +40,10 @@ source, but private target commits must never flow back into public history.
 | Path | Committed? | Purpose |
 |---|---|---|
 | `target.json` | yes | strictly validated operational contract; see fields below |
-| `eval/dev/` | yes | dev suite (also copied to the target repo) |
+| `target-profile.json` | yes | sanitized inspection evidence: source SHA, languages, build files, and agent instructions |
+| `eval/dev/` | yes | dev suite copied only through the verified bundle |
 | `eval/holdout/` | yes | holdout cases with embedded canaries — **never leaves the hub** |
+| `dev-harness/score-dev.sh` | yes | agent-visible scorer; owns lint plus scoring exactly once |
 | `canary-list.json` | yes | per-run canary registry (proof-of-access detection) |
 | `harness/score-holdout.sh` | yes | per-target scorer; two-stage contract |
 | `harness/probe-holdout.sh` | yes | per-target holdout mutation probe |
@@ -51,6 +53,12 @@ source, but private target commits must never flow back into public history.
 | `retros/` | yes | post-run retrospectives (`bin/lfd retro`) |
 | `runs/` | **no** (gitignored) | captured Stage-1 outputs per tag, for `bin/lfd review` |
 | `goal.md` | yes | the emitted optimization target (copied to the target repo at launch) |
+| `bundle/` | yes | generated agent-visible tree with `.lfd/bundle-manifest.json` hashes |
+
+The bundle generator has an exact source allowlist: `goal.md`, `eval/dev/`,
+`dev-harness/`, and the target-repository templates. It rejects private-shaped
+paths before generation and verifies every installed managed file by SHA-256.
+Equip refuses to overwrite a caller-owned or locally modified file.
 
 ### `target.json` fields
 

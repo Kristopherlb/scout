@@ -1,0 +1,12 @@
+{
+  "files": {
+    ".github/workflows/holdout-request-tag.yml": "27d58c9a63fc0a75a545bf0517e913bdbfe1c2d35e3b00db797dee744778c2ab",
+    ".lfd/eval/dev/case-d001.json": "35bc9f8b7aac2b33c050321a9c038bf251b60ab9e90b11caa65706b0ab12c72f",
+    ".lfd/goal.md": "3842cfe31e46089d8daa5825c0315001bcf6eaaf2b30bdf924f1c0b8b73db773",
+    ".lfd/harness/score-dev.sh": "bf43d3124872b84174cac28bb48176583f78b8987ee005c3a8e109b92af60a52",
+    "scripts/target-repo/check-holdout-status.sh": "8151a83b18f4ac9e5288193cda953f21eeb128f1387e665a995d0c16dcdc03f1",
+    "scripts/target-repo/request-holdout-check.sh": "da5fd4edd89ed45d376f17dcd5277cf44d4a6ed7fb74281e1bd7692ada242143",
+    "scripts/target-repo/score-dev.sh": "37bf8ee20257c92dbd0541c87e31cac7f2537cbdd072313e92dbf685018a4d19"
+  },
+  "schema_version": 1
+}

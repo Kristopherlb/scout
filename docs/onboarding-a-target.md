@@ -6,13 +6,16 @@ public source repository must contain synthetic fixtures only.
 ## 1. Scaffold the registry entry
 
 ```bash
-bin/lfd new-target myrepo git@github.com:YOUR-ORG/myrepo.git
+bin/lfd doctor
+bin/lfd onboard start myrepo git@github.com:YOUR-ORG/myrepo.git
+bin/lfd onboard inspect myrepo --checkout /path/to/myrepo
 ```
 
 This creates `targets/myrepo/` with `lifecycle.status` set to `onboarding`, empty eval
-directories, and an empty harness directory. An onboarding target is never
-polled; scoring remains unavailable until the design workflow writes real
-harnesses.
+directories, and executable harnesses that fail with `capability_unavailable`.
+An onboarding target is never polled; scoring remains unavailable until the
+design workflow replaces those fail-closed implementations. Inspection writes
+a sanitized `target-profile.json` without local paths or source content.
 
 ## 2. Design the eval and harness
 
@@ -24,7 +27,8 @@ The design process must:
 
 - size the evaluation from an explicit effect size and confidence target;
 - build `targets/myrepo/eval/{dev,holdout}`;
-- replace both scripts under `targets/myrepo/harness/`;
+- replace the private scripts under `targets/myrepo/harness/` and the visible
+  `targets/myrepo/dev-harness/score-dev.sh`;
 - preserve the two-stage sandbox contract in
   [architecture.md](architecture.md);
 - emit `targets/myrepo/goal.md`;
@@ -36,15 +40,16 @@ is blocked. A skipped liveness gate must be an explicit, justified exemption.
 
 ## 3. Equip the target repository
 
-Copy and commit the agent-visible files:
+Generate, verify, and install the agent-visible files:
 
 ```bash
-cp -R templates/target-repo/. /path/to/myrepo/
-cp skills/lfd-design/references/agent-instructions.md /path/to/myrepo/
-cp targets/myrepo/goal.md /path/to/myrepo/
+bin/lfd onboard equip myrepo --checkout /path/to/myrepo
+bin/lfd onboard verify myrepo --checkout /path/to/myrepo
 ```
 
-Never copy the holdout suite, canary list, private scorer, or operational log.
+The generated manifest is the allowlist and integrity record. Equip fails on
+conflicts instead of overwriting caller-owned content. Never bypass it to copy
+the holdout suite, canary list, private scorer, or operational log.
 
 The target receives a developer scorer, a holdout request script, a status
 reader, and an optional GitHub Actions transport. The request script first

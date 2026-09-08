@@ -1,0 +1,11 @@
+{
+  "agent_instruction_files": [],
+  "build_files": [
+    "pyproject.toml"
+  ],
+  "languages": [
+    "python"
+  ],
+  "schema_version": 1,
+  "source_sha": "0000000000000000000000000000000000000000"
+}
