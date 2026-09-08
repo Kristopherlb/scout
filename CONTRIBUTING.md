@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve LFD Evals.
+Thanks for helping improve Scout.
 
 ## Before opening a pull request
 
@@ -18,6 +18,27 @@ mypy
 
 Keep changes focused and explain security-boundary changes explicitly. Add or
 update tests for behavior changes.
+
+## Standards and architecture changes
+
+Scout keeps its requirements and accepted architecture decisions in `rac/` and
+maps every normative requirement to a control in `standards/controls.json`.
+The RAC standards tool requires Python 3.11 or newer; its exact version is
+recorded in `standards/rac-version.txt`, and all transitive dependencies are
+hash-locked in `standards/rac-requirements.lock`. Install the lock, then run:
+
+```bash
+python3 -m pip install --require-hashes -r standards/rac-requirements.lock
+python3 tools/check_standards.py all
+rac gate rac/
+rac export rac/ --agent-rules --check
+```
+
+If an accepted decision changes, regenerate the managed agent guidance with
+`rac export rac/ --agent-rules` and commit the result. New blocking source
+guardrails should include a negative regression test proving that the forbidden
+state is rejected. Human-review controls must identify their review procedure
+instead of claiming executable coverage.
 
 ## Never submit evaluation secrets
 
