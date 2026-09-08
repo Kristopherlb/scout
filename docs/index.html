@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1020" />
+    <meta
+      name="description"
+      content="A plain-language field guide to Loss Function Development: how Scout builds blinded, anti-Goodhart evaluations for autonomous coding agents."
+    />
+    <meta property="og:title" content="The LFD Field Guide · Scout" />
+    <meta
+      property="og:description"
+      content="How to measure autonomous agents without teaching them to game the test."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <title>The LFD Field Guide · Scout</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./lfd.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to the guide</a>
+
+    <header class="site-header" aria-label="Primary navigation">
+      <a class="brand" href="#top" aria-label="Scout LFD Field Guide home">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span>SCOUT <em>/ LFD FIELD GUIDE</em></span>
+      </a>
+      <nav>
+        <a href="#plain-english">The idea</a>
+        <a href="#mechanics">How it works</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#science">The science</a>
+        <a class="repo-link" href="https://github.com/Kristopherlb/scout">View source ↗</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="hero-copy">
+          <p class="eyebrow"><span>FIELD NOTE 001</span> LOSS FUNCTION DEVELOPMENT</p>
+          <h1>Measure the work.<br /><span>Not the test-taking.</span></h1>
+          <p class="hero-deck">
+            Scout is a system for improving autonomous coding agents without accidentally
+            teaching them to game the scoreboard. This is the LFD process—explained for humans.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#plain-english">Start with the simple version ↓</a>
+            <a class="button button-secondary" href="#architecture">Explore the system flows</a>
+            <a class="button button-secondary" href="#mechanics">How it actually works</a>
+          </div>
+        </div>
+
+        <div class="hero-instrument" aria-label="Illustration of visible practice and hidden evaluation">
+          <div class="instrument-heading">
+            <span>THE CORE SEPARATION</span>
+            <span class="status-dot">LIVE PRINCIPLE</span>
+          </div>
+          <div class="instrument-grid">
+            <article class="signal-card signal-visible">
+              <span class="signal-index">01</span>
+              <p class="signal-label">VISIBLE</p>
+              <h2>Practice set</h2>
+              <p>Fast feedback helps the agent learn and iterate.</p>
+            </article>
+            <div class="signal-divider" aria-hidden="true">
+              <span>≠</span>
+              <small>SEPARATE<br />BY DESIGN</small>
+            </div>
+            <article class="signal-card signal-hidden">
+              <span class="signal-index">02</span>
+              <p class="signal-label">BLINDED</p>
+              <h2>Real exam</h2>
+              <p>Rare, aggregate feedback checks genuine progress.</p>
+            </article>
+          </div>
+          <div class="instrument-readout">
+            <span>WHEN BOTH IMPROVE</span>
+            <strong>CAPABILITY ↑</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="plain-section" id="plain-english">
+        <div class="section-heading">
+          <p class="eyebrow">THE 30-SECOND VERSION</p>
+          <h2>Think driving lessons, not a worksheet.</h2>
+        </div>
+        <div class="analogy-grid">
+          <article class="analogy-card">
+            <span class="card-number">A</span>
+            <h3>The goal</h3>
+            <p>
+              You want a driver who can handle unfamiliar roads—not someone who memorized one route.
+              LFD turns “be good at this task” into a score that rewards transferable skill.
+            </p>
+          </article>
+          <article class="analogy-card accent-card">
+            <span class="card-number">B</span>
+            <h3>The trick</h3>
+            <p>
+              Let the agent practice on examples it can see, but test it on cases it cannot access.
+              Reveal only enough feedback to steer—not enough to reconstruct the exam.
+            </p>
+          </article>
+          <article class="analogy-card">
+            <span class="card-number">C</span>
+            <h3>The proof</h3>
+            <p>
+              If practice and hidden scores rise together—and the solution survives mutations—you
+              have evidence of real capability, not clever answer memorization.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="architecture-section" id="architecture">
+        <div class="section-heading heading-row">
+          <div>
+            <p class="eyebrow">SYSTEM FLOWS</p>
+            <h2>Follow the request—or inspect the boundary.</h2>
+          </div>
+          <p class="section-intro">
+            One diagram explains what happens over time. The other explains who is allowed to know
+            what. Switch views depending on the question you are trying to answer.
+          </p>
+        </div>
+
+        <div class="map-switcher" role="tablist" aria-label="Architecture views">
+          <button class="map-tab is-active" type="button" role="tab" id="tab-request" aria-selected="true" aria-controls="view-request" data-map-view="request">
+            <span>OPTION 01</span> Request → result
+          </button>
+          <button class="map-tab" type="button" role="tab" id="tab-trust" aria-selected="false" aria-controls="view-trust" data-map-view="trust" tabindex="-1">
+            <span>OPTION 02</span> Trust boundaries
+          </button>
+        </div>
+
+        <div class="map-view is-active" id="view-request" role="tabpanel" aria-labelledby="tab-request" data-map-panel="request">
+          <div class="request-flow" aria-label="Holdout request flow from target commit to bounded result">
+            <article class="flow-step">
+              <span class="flow-index">01</span>
+              <p>TARGET REPO</p>
+              <h3>Agent commits a candidate</h3>
+              <small>Product code + visible dev score</small>
+            </article>
+            <span class="flow-arrow" aria-hidden="true">→<small>annotated tag</small></span>
+            <article class="flow-step">
+              <span class="flow-index">02</span>
+              <p>PRIVATE HUB</p>
+              <h3>Hub pins the exact SHA</h3>
+              <small>Deduplicated, rate-limited, budget-checked</small>
+            </article>
+            <span class="flow-arrow" aria-hidden="true">→<small>fresh checkout</small></span>
+            <article class="flow-step flow-step-accent">
+              <span class="flow-index">03</span>
+              <p>SANDBOX</p>
+              <h3>Code generates outputs</h3>
+              <small>No network. No answers. Read-only source.</small>
+            </article>
+            <span class="flow-arrow" aria-hidden="true">→<small>outputs only</small></span>
+            <article class="flow-step flow-step-dark">
+              <span class="flow-index">04</span>
+              <p>TRUSTED SCORER</p>
+              <h3>Hidden cases are compared</h3>
+              <small>Score, interval, probes, audit row</small>
+            </article>
+            <span class="flow-arrow flow-return" aria-hidden="true">→<small>bounded status</small></span>
+            <article class="flow-step">
+              <span class="flow-index">05</span>
+              <p>TARGET REPO</p>
+              <h3>Agent gets direction</h3>
+              <small>Aggregate result—never case details</small>
+            </article>
+          </div>
+          <p class="map-caption"><strong>Use this view to answer:</strong> “What happens after the agent asks for a holdout check?”</p>
+        </div>
+
+        <div class="map-view" id="view-trust" role="tabpanel" aria-labelledby="tab-trust" data-map-panel="trust" hidden>
+          <div class="trust-map" aria-label="Trust boundaries between the agent workspace and private operational hub">
+            <div class="trust-zone agent-zone">
+              <div class="zone-heading"><span>UNTRUSTED ZONE</span><strong>Agent workspace</strong></div>
+              <div class="zone-card">
+                <h3>Can read + change</h3>
+                <p>Target code, goal, development inputs, local scores, and request tooling.</p>
+              </div>
+              <div class="zone-card denied-card">
+                <h3>Cannot reach</h3>
+                <p>Holdout answers, canaries, private logs, case failures, scorer internals, or hub credentials.</p>
+              </div>
+            </div>
+
+            <div class="airlock">
+              <span class="airlock-label">INFORMATION AIRLOCK</span>
+              <div><b>IN →</b><p>Tag + pinned commit + claimed dev metrics</p></div>
+              <div><b>← OUT</b><p>Aggregate score + interval + boolean flags</p></div>
+              <small>Nothing else crosses</small>
+            </div>
+
+            <div class="trust-zone hub-zone">
+              <div class="zone-heading"><span>TRUSTED ZONE</span><strong>Private operational hub</strong></div>
+              <div class="zone-card">
+                <h3>Owns the truth</h3>
+                <p>Real holdouts, answers, canary registry, harness, configuration, and append-only history.</p>
+              </div>
+              <div class="zone-card source-card">
+                <h3>Imports carefully</h3>
+                <p>Reviewed releases flow in from the public framework. Private target material never flows back.</p>
+              </div>
+            </div>
+          </div>
+          <p class="map-caption"><strong>Use this view to answer:</strong> “Why can’t the optimizer learn the hidden exam?”</p>
+        </div>
+
+        <div class="boundary-note">
+          <span class="boundary-icon" aria-hidden="true">!</span>
+          <p>
+            <strong>The important part:</strong> a “private folder” is not enough. Hidden scoring runs
+            in a separate trusted environment, and untrusted target code runs without network access
+            or visibility into the holdout suite.
+          </p>
+        </div>
+      </section>
+
+      <section class="mechanics-section" id="mechanics">
+        <div class="section-heading heading-row mechanics-heading">
+          <div>
+            <p class="eyebrow">HOW IT ACTUALLY WORKS</p>
+            <h2>A score becomes useful only when the experiment around it is honest.</h2>
+          </div>
+          <div class="not-training-note">
+            <span>IMPORTANT DISTINCTION</span>
+            <p>
+              This is usually <strong>not neural-network training</strong>. There may be no gradient
+              or backpropagation. The optimizer proposes software changes; the loss gives it a
+              direction; the next cycle tests another hypothesis.
+            </p>
+          </div>
+        </div>
+
+        <div class="loss-model">
+          <div class="loss-explainer">
+            <p class="eyebrow">THE LOSS, SPECIFICALLY</p>
+            <h3>Scout does not impose one universal formula.</h3>
+            <p>
+              Each target gets a mechanical scorer suited to the outcome: precision and recall for
+              retrieval, structured output comparison for APIs, pixel difference for visual work,
+              or another task-matched metric. Scout standardizes the contract around that scorer.
+            </p>
+          </div>
+          <div class="equation-board" aria-label="Loss equals one minus task score">
+            <div class="equation-line"><span>L</span><small>(candidate)</small><b>=</b><span>1 − Score</span><small>(candidate on cases)</small></div>
+            <div class="equation-rule"></div>
+            <p>Lower loss is better. Acceptance is measured on the blinded holdout—not the visible development set.</p>
+          </div>
+        </div>
+
+        <div class="algorithm-grid">
+          <article class="algorithm-card">
+            <div class="algorithm-head"><span>ALGORITHM 01</span><b>N</b></div>
+            <h3>Size the exam before the run</h3>
+            <p>
+              Start with the target score <em>p</em>, the smallest meaningful difference <em>δ</em>,
+              and a confidence level whose critical value is <em>z</em>.
+            </p>
+            <code class="formula">N = ⌈z² · p(1 − p) / δ²⌉</code>
+            <p class="algorithm-translation">At p = .80, δ = .05, and 95% confidence: N = 246 cases.</p>
+          </article>
+
+          <article class="algorithm-card">
+            <div class="algorithm-head"><span>ALGORITHM 02</span><b>CI</b></div>
+            <h3>Put uncertainty around the score</h3>
+            <p>
+              Resample the case-level results with replacement, recompute the score many times, and
+              take the outer percentiles as the interval.
+            </p>
+            <code class="formula">CI₉₅ = percentile(bootstrap(scores), 2.5, 97.5)</code>
+            <p class="algorithm-translation">A score of .74 with [.71, .77] says what the data can actually support.</p>
+          </article>
+
+          <article class="algorithm-card">
+            <div class="algorithm-head"><span>ALGORITHM 03</span><b>Δ</b></div>
+            <h3>Detect reward over-optimization</h3>
+            <p>
+              Over the configured recent window, compare the development lower bound with the
+              hidden score. Scout allows a 2% tolerance before calling the holdout flat.
+            </p>
+            <code class="formula formula-stacked">dev_low[end] &gt; dev_low[start]<br />holdout[end] ≤ 1.02 × holdout[start]</code>
+            <p class="algorithm-translation">If both are true, flag divergence and redesign the loss.</p>
+          </article>
+
+          <article class="algorithm-card">
+            <div class="algorithm-head"><span>ALGORITHM 04</span><b>ℹ</b></div>
+            <h3>Budget the information leak</h3>
+            <p>
+              Estimate how many bits each response reveals, multiply by expected cycles, and compare
+              that with the information needed to identify the evaluation items.
+            </p>
+            <code class="formula formula-stacked">fraction ≈ (bits/call × cycles)<br />÷ (log₂(N) × N)</code>
+            <p class="algorithm-translation">Above the threshold, reduce feedback detail or grow the eval.</p>
+          </article>
+        </div>
+
+        <div class="runtime-algorithm">
+          <div class="runtime-copy">
+            <p class="eyebrow">THE RUNTIME ALGORITHM</p>
+            <h3>What <code>poll-and-score</code> does.</h3>
+            <p>
+              The private hub processes unseen request tags oldest-first. Every agent-supplied value
+              is parsed as a validated number, enum, or null—never interpolated into executable code.
+            </p>
+            <ul>
+              <li>Inactive, over-budget, duplicate, or rate-limited requests do not run.</li>
+              <li>A failed liveness check receives a truthful score of zero.</li>
+              <li>Sandbox failure aborts without inventing a score.</li>
+              <li>One validated row is appended for every completed scoring cycle.</li>
+            </ul>
+          </div>
+          <pre class="pseudo-code" aria-label="Simplified poll and score pseudocode"><code><span class="code-key">for</span> tag <span class="code-key">in</span> unseen_tags(oldest_first):
+  enforce(rate_limit, run_budget)
+  sha = resolve_pinned_commit(tag)
+
+  <span class="code-key">if not</span> sandboxed_liveness(sha):
+    result = Score(<span class="code-num">0</span>, [<span class="code-num">0</span>, <span class="code-num">0</span>])
+  <span class="code-key">else</span>:
+    outputs = sandbox_generate(sha,
+      network=<span class="code-bool">OFF</span>, source=<span class="code-bool">READ_ONLY</span>)
+    result = trusted_compare(outputs, holdout)
+    probe  = maybe_run_mutations(outputs)
+
+  append_once(log, result, probe, harness_hash)
+  flags = check_divergence(log) + check_probes(log)
+  post_status(result.score, result.interval, flags)</code></pre>
+        </div>
+
+        <div class="mechanics-summary">
+          <span>IN OTHER WORDS</span>
+          <p>
+            The loss says which way to move. The holdout asks whether the move generalizes. The
+            interval asks whether the change is real. The probes ask whether it is brittle. The
+            security boundary asks whether the evidence can still be trusted.
+          </p>
+        </div>
+      </section>
+
+      <section class="cycle-section" id="process">
+        <div class="section-heading heading-row">
+          <div>
+            <p class="eyebrow">ONE OPTIMIZATION CYCLE</p>
+            <h2>From hypothesis to honest signal.</h2>
+          </div>
+          <p class="section-intro">
+            Each cycle changes one thing, measures it twice, and records the result. That discipline
+            is what turns a string of edits into an experiment you can learn from.
+          </p>
+        </div>
+
+        <ol class="cycle-track">
+          <li>
+            <span class="step-index">01</span>
+            <div>
+              <p class="step-label">PREREGISTER</p>
+              <h3>Write the hypothesis</h3>
+              <p>Predict the change, the expected lift, and the likely failure mode before editing.</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-index">02</span>
+            <div>
+              <p class="step-label">BUILD</p>
+              <h3>Change one variable</h3>
+              <p>Keep the edit narrow enough that a score movement has a plausible cause.</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-index">03</span>
+            <div>
+              <p class="step-label">INNER LOOP</p>
+              <h3>Run visible tests</h3>
+              <p>Fast development cases catch obvious failures and guide everyday iteration.</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-index">04</span>
+            <div>
+              <p class="step-label">REQUEST</p>
+              <h3>Tag a pinned commit</h3>
+              <p>An annotated <code>holdout-check-N</code> tag asks the hub to score one exact SHA.</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-index">05</span>
+            <div>
+              <p class="step-label">OUTER LOOP</p>
+              <h3>Score in isolation</h3>
+              <p>Target code generates outputs in a sandbox; comparison happens outside it.</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-index">06</span>
+            <div>
+              <p class="step-label">DECIDE</p>
+              <h3>Read the trend, not a blip</h3>
+              <p>The agent receives a bounded status. The hub retains the detailed audit trail.</p>
+            </div>
+          </li>
+        </ol>
+
+        <div class="two-stage">
+          <div class="stage stage-one">
+            <p>STAGE 1 · GENERATE</p>
+            <h3>Untrusted code runs in a jail.</h3>
+            <ul>
+              <li>Target checkout is read-only</li>
+              <li>Network access is disabled</li>
+              <li>CPU, memory, processes, and time are capped</li>
+              <li>Only an output directory is writable</li>
+            </ul>
+          </div>
+          <div class="stage-arrow" aria-hidden="true">
+            <span>outputs only</span>
+            <b>→</b>
+          </div>
+          <div class="stage stage-two">
+            <p>STAGE 2 · COMPARE</p>
+            <h3>Trusted code grades the result.</h3>
+            <ul>
+              <li>Hidden answers never enter the sandbox</li>
+              <li>Cases are scored and resampled</li>
+              <li>One aggregate score + interval leaves the hub</li>
+              <li>Detailed evidence stays private</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="science-section" id="science">
+        <div class="science-header">
+          <div class="section-heading">
+            <p class="eyebrow">THE SCIENCE, MINUS THE HEADACHE</p>
+            <h2>The score is a compass—not the destination.</h2>
+          </div>
+          <p class="science-lede">
+            A loss function is simply a repeatable way to say “warmer” or “colder.” The danger is
+            that a tireless optimizer will find shortcuts in the measurement. LFD wraps the score in
+            checks that make genuine improvement the easiest remaining path.
+          </p>
+        </div>
+
+        <div class="concept-list">
+          <details open>
+            <summary>
+              <span class="concept-number">01</span>
+              <span class="concept-title">Power analysis</span>
+              <span class="concept-tldr">“How many test cases are enough?”</span>
+              <span class="concept-toggle" aria-hidden="true">+</span>
+            </summary>
+            <div class="concept-body">
+              <p>
+                Before a run starts, LFD chooses the smallest improvement worth detecting and the
+                confidence required. A calculation then sets the minimum number of cases. For
+                example, distinguishing a five-point change around an 80% target at 95% confidence
+                needs roughly <strong>246 cases</strong>—not a guess, and not “whatever we had.”
+              </p>
+              <div class="plain-callout"><strong>Plain English:</strong> a tiny exam can make luck look like progress.</div>
+            </div>
+          </details>
+
+          <details>
+            <summary>
+              <span class="concept-number">02</span>
+              <span class="concept-title">Bootstrap confidence intervals</span>
+              <span class="concept-tldr">“How sure are we about the score?”</span>
+              <span class="concept-toggle" aria-hidden="true">+</span>
+            </summary>
+            <div class="concept-body">
+              <p>
+                A score such as 0.74 is only an estimate from one set of cases. LFD repeatedly
+                resamples case results—typically 1,000 times—to estimate a plausible range, such as
+                0.71–0.77. The loop reacts to meaningful movement in that range, not every noisy
+                decimal wiggle.
+              </p>
+              <div class="plain-callout"><strong>Plain English:</strong> report “74%, give or take,” not false precision.</div>
+            </div>
+          </details>
+
+          <details>
+            <summary>
+              <span class="concept-number">03</span>
+              <span class="concept-title">Mutation testing</span>
+              <span class="concept-tldr">“Does the skill survive a remix?”</span>
+              <span class="concept-toggle" aria-hidden="true">+</span>
+            </summary>
+            <div class="concept-body">
+              <p>
+                Inputs are systematically changed—paraphrased, reordered, shifted to a boundary, or
+                given a new entity—while preserving the underlying task. Scores are reported by
+                operator, so a result can reveal that paraphrases work while entity swaps fail.
+              </p>
+              <div class="plain-callout"><strong>Plain English:</strong> memorization breaks when the question changes clothes.</div>
+            </div>
+          </details>
+
+          <details>
+            <summary>
+              <span class="concept-number">04</span>
+              <span class="concept-title">Goodhart’s Law</span>
+              <span class="concept-tldr">“When a measure becomes a target…”</span>
+              <span class="concept-toggle" aria-hidden="true">+</span>
+            </summary>
+            <div class="concept-body concept-split">
+              <p>
+                Aggressive optimization exposes every gap between a metric and the outcome it was
+                meant to represent. LFD classifies the likely shortcuts, then matches each with the
+                right kind of defense.
+              </p>
+              <ul class="goodhart-grid">
+                <li><strong>Regressional</strong><span>Chasing noise in the test</span></li>
+                <li><strong>Extremal</strong><span>Pushing a useful knob past its useful range</span></li>
+                <li><strong>Causal</strong><span>Changing the measuring machinery itself</span></li>
+                <li><strong>Adversarial</strong><span>Actively hunting gaps in the metric</span></li>
+              </ul>
+            </div>
+          </details>
+
+          <details>
+            <summary>
+              <span class="concept-number">05</span>
+              <span class="concept-title">Dev / holdout divergence</span>
+              <span class="concept-tldr">“Are we learning—or gaming?”</span>
+              <span class="concept-toggle" aria-hidden="true">+</span>
+            </summary>
+            <div class="concept-body concept-chart-wrap">
+              <div>
+                <p>
+                  Scout watches recent score intervals. If the visible development score keeps
+                  climbing while the hidden holdout score stays flat or falls, that is the classic
+                  reward-over-optimization signature. The run stops treating the metric as safe and
+                  triggers a redesign of the loss function.
+                </p>
+                <div class="plain-callout"><strong>Plain English:</strong> better homework, same final exam = investigate.</div>
+              </div>
+              <div class="mini-chart" role="img" aria-label="Development score rises while holdout score remains flat">
+                <div class="chart-grid"></div>
+                <svg viewBox="0 0 360 170" aria-hidden="true">
+                  <polyline class="dev-line" points="10,145 75,125 140,105 205,78 270,48 350,20" />
+                  <polyline class="holdout-line" points="10,140 75,125 140,110 205,105 270,108 350,112" />
+                </svg>
+                <span class="chart-label dev-label">DEV ↑</span>
+                <span class="chart-label holdout-label">HOLDOUT →</span>
+              </div>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <section class="guardrail-section" id="guardrails">
+        <div class="section-heading heading-row">
+          <div>
+            <p class="eyebrow">DEFENSE IN DEPTH</p>
+            <h2>Every shortcut leaves a footprint.</h2>
+          </div>
+          <p class="section-intro">
+            No single check is perfect. Scout combines independent signals so that hiding from one
+            detector tends to make a different detector light up.
+          </p>
+        </div>
+
+        <div class="guardrail-grid">
+          <article>
+            <span class="guardrail-symbol">CNY</span>
+            <h3>Canaries</h3>
+            <p>Unique strings embedded in hidden answers turn any later appearance into proof of access.</p>
+          </article>
+          <article>
+            <span class="guardrail-symbol">N·G</span>
+            <h3>Overlap lint</h3>
+            <p>Phrase-level similarity catches near-verbatim leakage that exact canaries can miss.</p>
+          </article>
+          <article>
+            <span class="guardrail-symbol">ZIP</span>
+            <h3>Compressibility</h3>
+            <p>Solution size growing with the eval can reveal a disguised lookup table.</p>
+          </article>
+          <article>
+            <span class="guardrail-symbol">COV</span>
+            <h3>Coverage variance</h3>
+            <p>Identical code paths across cases suggest dispatching answers instead of doing the work.</p>
+          </article>
+          <article>
+            <span class="guardrail-symbol">LIV</span>
+            <h3>Liveness</h3>
+            <p>The product must actually build, boot, and answer before any evaluation is scored.</p>
+          </article>
+          <article>
+            <span class="guardrail-symbol">CAL</span>
+            <h3>Calibration</h3>
+            <p>The scorer must clearly separate a known-good result from a known-bad one.</p>
+          </article>
+        </div>
+
+        <div class="activation-gate">
+          <div>
+            <p class="gate-label">ACTIVATION REQUIRES</p>
+            <h3>A live product. A fresh audit. A calibrated scorer.</h3>
+          </div>
+          <div class="gate-pills" aria-label="Required activation gates">
+            <span>✓ LIVENESS</span>
+            <span>✓ AUDIT</span>
+            <span>✓ CALIBRATION</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="visibility-section" id="visibility">
+        <div class="section-heading">
+          <p class="eyebrow">INFORMATION BOUNDARY</p>
+          <h2>Who gets to see what?</h2>
+        </div>
+
+        <div class="visibility-table" role="table" aria-label="Information visible to the agent and the private hub">
+          <div class="visibility-row table-head" role="row">
+            <span role="columnheader">Information</span>
+            <span role="columnheader">Agent / target</span>
+            <span role="columnheader">Private hub</span>
+          </div>
+          <div class="visibility-row" role="row">
+            <span role="cell">Development cases</span><span class="yes" role="cell">Visible</span><span class="yes" role="cell">Visible</span>
+          </div>
+          <div class="visibility-row" role="row">
+            <span role="cell">Holdout inputs</span><span class="limited" role="cell">Sometimes</span><span class="yes" role="cell">Visible</span>
+          </div>
+          <div class="visibility-row" role="row">
+            <span role="cell">Holdout answers + canaries</span><span class="no" role="cell">Never</span><span class="yes" role="cell">Visible</span>
+          </div>
+          <div class="visibility-row" role="row">
+            <span role="cell">Per-case failures</span><span class="no" role="cell">Never</span><span class="yes" role="cell">Visible</span>
+          </div>
+          <div class="visibility-row" role="row">
+            <span role="cell">Aggregate score + interval</span><span class="yes" role="cell">Returned</span><span class="yes" role="cell">Recorded</span>
+          </div>
+          <div class="visibility-row" role="row">
+            <span role="cell">Detailed audit history</span><span class="no" role="cell">Never</span><span class="yes" role="cell">Append-only</span>
+          </div>
+        </div>
+
+        <p class="visibility-note">
+          The rule of thumb: return enough signal to choose a direction, but not enough detail to
+          reverse-engineer the test.
+        </p>
+      </section>
+
+      <section class="faq-section" id="faq">
+        <div class="section-heading">
+          <p class="eyebrow">COMMON QUESTIONS</p>
+          <h2>Short answers for sensible skeptics.</h2>
+        </div>
+        <div class="faq-grid">
+          <details>
+            <summary>Is LFD just “more testing”?</summary>
+            <p>
+              No. Conventional tests mainly check known requirements. LFD adds a sparse outer loop
+              designed for repeated optimization: blinded cases, measured uncertainty, information
+              limits, anti-cheat signals, and explicit stop conditions.
+            </p>
+          </details>
+          <details>
+            <summary>Why not show the agent every failure?</summary>
+            <p>
+              Because case-level feedback leaks information. Across enough cycles, a capable agent
+              can reconstruct the hidden set. Aggregate feedback preserves direction while reducing
+              that reconstruction channel.
+            </p>
+          </details>
+          <details>
+            <summary>Does a high score prove the system is safe?</summary>
+            <p>
+              No. It is evidence about the task distribution represented by the eval, not universal
+              proof. Confidence intervals quantify sampling uncertainty; audits and probes look for
+              failure modes the headline score may hide.
+            </p>
+          </details>
+          <details>
+            <summary>What happens when the agent finds a shortcut?</summary>
+            <p>
+              Patch the loss function, not the agent. The design process classifies the exploit,
+              adds a matching fence and detector, rotates exposed cases, recalibrates, and only then
+              resumes optimization.
+            </p>
+          </details>
+          <details>
+            <summary>Why one variable per cycle?</summary>
+            <p>
+              If five unrelated changes land together, a better score cannot tell you which idea
+              worked. Narrow cycles preserve causal learning and make reversals much safer.
+            </p>
+          </details>
+          <details>
+            <summary>What does Scout publish?</summary>
+            <p>
+              The public repository contains the reusable framework and synthetic examples only.
+              Real holdouts, canaries, target configuration, and score histories belong in a
+              separate private operational repository.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="final-section">
+        <p class="eyebrow">THE WHOLE IDEA IN ONE LINE</p>
+        <h2>Build fast feedback for learning—and a separate truth for knowing.</h2>
+        <p>
+          Scout makes it possible to optimize aggressively while keeping the evidence honest,
+          auditable, and difficult to game.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/Kristopherlb/scout">Explore Scout on GitHub ↗</a>
+          <a class="button button-secondary" href="./architecture.md">Read the architecture notes</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>SCOUT · BLINDED EVALUATION FOR AUTONOMOUS AGENTS · APACHE-2.0</p>
+      <div class="footer-links">
+        <a href="./architecture.md">Architecture</a>
+        <a href="./onboarding-a-target.md">Onboarding</a>
+        <a href="https://github.com/Kristopherlb/scout">GitHub ↗</a>
+      </div>
+    </footer>
+    <script src="./lfd.js"></script>
+  </body>
+</html>
