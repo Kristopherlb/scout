@@ -1,0 +1,32 @@
+[project]
+name = "lfd-evals"
+version = "0.1.0"
+description = "Blinded, anti-Goodhart evaluations for autonomous coding agents"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+authors = [{ name = "Kristopher Bowles" }]
+dependencies = []
+
+# Ruff, Mypy, and Coverage are development tools, never runtime dependencies.
+# The zero-deps policy is enforced by tools/ci_checks.py.
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]  # long lines in generated-HTML/string blobs are fine
+
+[tool.mypy]
+files = ["tools", "ops"]
+ignore_missing_imports = true
+check_untyped_defs = true
+exclude = ['tools/tests/.*']
+
+[tool.coverage.run]
+source = ["tools", "ops"]
+omit = ["tools/tests/*", "*/lfd_dashboard.py"]
+
+[tool.coverage.report]
+show_missing = true

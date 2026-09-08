@@ -1,0 +1,101 @@
+# CI for the hub itself: tests, lint, policy gates, dashboard artifact.
+# All third-party actions are SHA-pinned (supply-chain policy, SECURITY.md).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Compile all Python
+        run: python3 -m compileall -q tools ops skills/lfd-design/scripts/design
+
+      - name: Unit tests
+        run: python3 -m unittest discover -s tools/tests -v
+
+      - name: Shellcheck
+        run: shellcheck ops/*.sh bin/lfd templates/target-repo/scripts/target-repo/*.sh
+
+      - name: Policy gates (activation gate, zero-deps)
+        run: python3 tools/ci_checks.py all
+
+      - name: Public-source data boundary
+        if: github.event.repository.private == false
+        run: python3 tools/ci_checks.py public-release
+
+      - name: Append-only log check (PRs)
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          python3 tools/ci_checks.py append-only-log \
+            --diff-range "origin/${{ github.base_ref }}...HEAD"
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install dev tools (CI-only; not runtime deps)
+        run: pip install ruff==0.15.20 mypy==1.19.1 coverage==7.10.7
+      - name: Ruff
+        run: ruff check tools ops
+      - name: Mypy
+        run: mypy
+      - name: Coverage (blocking floor on the trust-boundary module)
+        run: |
+          coverage run --branch -m unittest discover -s tools/tests
+          echo "### Coverage" >> "$GITHUB_STEP_SUMMARY"
+          coverage report >> "$GITHUB_STEP_SUMMARY"
+          coverage report --include="*/lfd_common.py" --fail-under=90
+
+  sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Pull configured sandbox image
+        shell: bash
+        run: |
+          source targets/_example/config.env
+          docker pull "$SANDBOX_IMAGE"
+      - name: Verify required isolation boundaries
+        env:
+          LFD_REQUIRE_DOCKER_TESTS: "1"
+        run: python3 -m unittest tools.tests.test_hub.TestSandbox -v
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Scan for secrets
+        run: |
+          docker run --rm -v "$PWD:/repo" \
+            zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            detect --source /repo --no-banner --redact
+
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Generate dashboard
+        run: python3 tools/lfd_dashboard.py --hub-root .
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dashboard
+          path: dashboard/index.html
+          retention-days: 30

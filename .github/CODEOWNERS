@@ -1,0 +1,16 @@
+# Every change to eval content or the trust boundary gets a deliberate look.
+# (Solo repo today — this makes the review requirement explicit and survives
+# the moment a second collaborator is ever added.)
+
+# The isolation boundary and scoring runtime
+/ops/                       @Kristopherlb
+/tools/lfd_common.py        @Kristopherlb
+/tools/ci_checks.py         @Kristopherlb
+
+# Eval content — holdout answers and canaries must never leak
+/targets/*/eval/holdout/    @Kristopherlb
+/targets/*/canary-list.json @Kristopherlb
+
+# Security posture and CI
+/SECURITY.md                @Kristopherlb
+/.github/                   @Kristopherlb

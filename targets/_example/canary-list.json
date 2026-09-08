@@ -1,0 +1,7 @@
+{
+  "run_id": "run-example",
+  "canaries": [
+    {"file": "case-001.json", "canary": "LFD-CANARY-0000000000000001"},
+    {"file": "case-002.json", "canary": "LFD-CANARY-0000000000000002"}
+  ]
+}

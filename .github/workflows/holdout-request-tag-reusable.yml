@@ -1,0 +1,71 @@
+name: holdout-request-tag-reusable
+
+# Reusable (workflow_call) form of the LFD holdout-request transport shim.
+# Host once here; each target repo carries a ~10-line caller instead of the
+# full self-contained workflow, so the job body is maintained in one place.
+#
+# Caller (drop into the target repo at .github/workflows/holdout-request-tag.yml):
+#
+#   name: holdout-request-tag
+#   on:
+#     push:
+#       paths: [".github/holdout-requests.jsonl"]
+#   permissions:
+#     contents: write            # callers MUST re-declare this
+#   jobs:
+#     call:
+#       uses: OWNER/REPOSITORY/.github/workflows/holdout-request-tag-reusable.yml@main
+#
+# The reusable workflow checks out the CALLER's repo (github.repository is the
+# caller under workflow_call), so it reads the caller's
+# .github/holdout-requests.jsonl. Requires the hub repo to be readable by the
+# caller's Actions (public, or same org/allowed). Prefer the self-contained
+# copy-paste form (templates/target-repo/.github/workflows/holdout-request-tag.yml)
+# when zero coupling matters more than single-point maintenance.
+#
+# Body is identical to the self-contained template; keep the two in sync.
+
+on:
+  workflow_call: {}
+
+permissions:
+  contents: write
+
+jobs:
+  create-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Create pending holdout-request tags
+        run: |
+          set -euo pipefail
+          REQ=".github/holdout-requests.jsonl"
+          [ -f "$REQ" ] || { echo "no ${REQ} — nothing to do"; exit 0; }
+
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
+
+          while IFS= read -r line || [ -n "$line" ]; do
+            [ -n "${line//[[:space:]]/}" ] || continue
+
+            TAG=$(printf '%s' "$line"    | jq -r '.tag')
+            TARGET=$(printf '%s' "$line" | jq -r '.target')
+            MSG=$(printf '%s' "$line"    | jq -r '.message')
+
+            if [[ ! "$TAG" =~ ^holdout-check-[0-9]+$ ]]; then
+              echo "skip: non-holdout tag name '${TAG}'"; continue
+            fi
+            if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+              echo "skip: tag ${TAG} already exists on origin"; continue
+            fi
+            if ! git cat-file -e "${TARGET}^{commit}" 2>/dev/null; then
+              echo "skip: target ${TARGET} for ${TAG} not reachable (bad SHA?)"; continue
+            fi
+
+            git tag -a "${TAG}" -m "${MSG}" "${TARGET}"
+            git push origin "refs/tags/${TAG}"
+            echo "pushed ${TAG} -> ${TARGET}"
+          done < "$REQ"

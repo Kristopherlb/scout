@@ -1,0 +1,7 @@
+{
+  "note": "Fixture-only audit data for dashboard rendering. This is not evidence that a runtime scorer exists.",
+  "verdict": "FIXTURE_ONLY",
+  "harness_version": "96a6e1244220236c",
+  "mechanical_results": [{"item": "D. canary coverage", "verdict": "PASS"}],
+  "still_requires_independent_llm_judgment": []
+}

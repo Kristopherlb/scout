@@ -1,0 +1,54 @@
+# Manual-only public template. Private operators configure their own schedule.
+# The hub always initiates contact with target repos: no inbound webhook,
+# listener, or shared secret in the other direction. Non-active targets are
+# skipped inside poll-and-score.sh.
+name: poll-holdout
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # commits updated log.jsonl rows
+
+concurrency:
+  group: poll-holdout
+  cancel-in-progress: false   # overlapping polls would race on log.jsonl
+
+jobs:
+  poll-and-score:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Poll and score every target
+        env:
+          EVAL_REPO_STATUS_TOKEN: ${{ secrets.EVAL_REPO_STATUS_TOKEN }}
+        run: |
+          # Hosted runners have no SSH key. Derive the current GitHub host from
+          # runner configuration and rewrite that host's SSH clone route to
+          # token-authenticated HTTPS. Target config.env URLs stay unchanged.
+          if [ -n "${EVAL_REPO_STATUS_TOKEN:-}" ]; then
+            : "${GITHUB_SERVER_URL:?GitHub runner did not provide GITHUB_SERVER_URL}"
+            case "$GITHUB_SERVER_URL" in
+              https://*) ;;
+              *) echo "unsupported GITHUB_SERVER_URL: $GITHUB_SERVER_URL" >&2; exit 2 ;;
+            esac
+            GITHUB_HOST="${GITHUB_SERVER_URL#https://}"
+            git config --global \
+              url."https://x-access-token:${EVAL_REPO_STATUS_TOKEN}@${GITHUB_HOST}/".insteadOf \
+              "git@${GITHUB_HOST}:"
+          fi
+          for t in targets/*/; do
+            [ -f "$t/config.env" ] || continue
+            bash ops/poll-and-score.sh "$t"
+          done
+
+      - name: Commit updated logs
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
+          git add targets/*/log.jsonl
+          git diff --cached --quiet || git commit -m "poll: append scoring rows"
+          git push

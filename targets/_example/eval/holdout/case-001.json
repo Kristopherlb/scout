@@ -1,0 +1,5 @@
+{
+  "input": {"question": "What is the capital of the fictional nation of Veldoria?"},
+  "answer": "Port Meridian",
+  "_canary": "LFD-CANARY-0000000000000001"
+}
