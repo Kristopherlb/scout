@@ -61,6 +61,24 @@ jobs:
           coverage report >> "$GITHUB_STEP_SUMMARY"
           coverage report --include="*/lfd_common.py" --fail-under=90
 
+  standards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install pinned RAC standards tool
+        run: python3 -m pip install --require-hashes -r standards/rac-requirements.lock
+      - name: Verify RAC version pin
+        run: test "$(rac --version)" = "rac $(cat standards/rac-version.txt)"
+      - name: Validate requirements and decisions
+        run: rac gate rac/
+      - name: Reject stale generated agent guidance
+        run: rac export rac/ --agent-rules --check
+      - name: Enforce Scout standards controls
+        run: python3 tools/check_standards.py all
+
   sandbox:
     runs-on: ubuntu-latest
     timeout-minutes: 10

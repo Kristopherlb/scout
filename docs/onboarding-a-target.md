@@ -1,6 +1,6 @@
 # Onboarding a target repository
 
-Onboard real targets only from a private operational copy of LFD Evals. The
+Onboard real targets only from a private operational copy of Scout. The
 public source repository must contain synthetic fixtures only.
 
 ## 1. Scaffold the registry entry
