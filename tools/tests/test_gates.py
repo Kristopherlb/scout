@@ -78,8 +78,12 @@ class TestAuditState(unittest.TestCase):
             "schema_version": 1,
             "state": "complete",
             "verdict": verdict,
+            "mechanical_results": [{
+                "item": "mechanical", "verdict": "PASS", "detail": "checked",
+            }],
             "judgment": self.judgment,
             "hashes": lfd_common.audit_artifact_hashes(self.dir, self.judgment),
+            "finalized_at": "2026-01-01T00:00:00Z",
         }
         self.report(**report)
 
@@ -109,6 +113,15 @@ class TestAuditState(unittest.TestCase):
 
     def test_malformed_json_is_failed(self):
         write(os.path.join(self.dir, "audit-report.json"), "{not json")
+        self.assertEqual(lfd_common.audit_state(self.dir)[0], "failed")
+
+    def test_complete_report_without_mechanical_evidence_is_failed(self):
+        self.final_report()
+        path = os.path.join(self.dir, "audit-report.json")
+        with open(path) as stream:
+            report = json.load(stream)
+        report["mechanical_results"] = []
+        write(path, report)
         self.assertEqual(lfd_common.audit_state(self.dir)[0], "failed")
 
 
@@ -142,6 +155,20 @@ class TestCalibrationState(unittest.TestCase):
         self.report("{not json")
         self.assertEqual(lfd_common.calibration_state(self.dir)[0], "invalid")
 
+    def test_out_of_range_reversed_or_non_containing_evidence_is_invalid(self):
+        reports = (
+            {"good_score": 0.9, "good_ci": [2, -100],
+             "bad_score": 0.2, "bad_ci": [-100, 1]},
+            {"good_score": 0.9, "good_ci": [0.8, 0.85],
+             "bad_score": 0.2, "bad_ci": [0.1, 0.3]},
+            {"good_score": float("nan"), "good_ci": [0.8, 1.0],
+             "bad_score": 0.2, "bad_ci": [0.1, 0.3]},
+        )
+        for report in reports:
+            with self.subTest(report=report):
+                self.report(report)
+                self.assertEqual(lfd_common.calibration_state(self.dir)[0], "invalid")
+
 
 class TestActivationGateIntegration(unittest.TestCase):
     """The gate as CI runs it: an active target must clear all three."""
@@ -173,9 +200,17 @@ class TestActivationGateIntegration(unittest.TestCase):
             "findings": {name: {"verdict": "PASS", "evidence": "reviewed"}
                          for name in lfd_audit.REQUIRED_FINDINGS},
         }
-        audit = {"schema_version": 1, "state": "complete", "verdict": "PASS",
-                 "judgment": judgment,
-                 "hashes": lfd_common.audit_artifact_hashes(self.tdir, judgment)}
+        audit = {
+            "schema_version": 1,
+            "state": "complete",
+            "verdict": "PASS",
+            "mechanical_results": [{
+                "item": "mechanical", "verdict": "PASS", "detail": "checked",
+            }],
+            "judgment": judgment,
+            "hashes": lfd_common.audit_artifact_hashes(self.tdir, judgment),
+            "finalized_at": "2026-01-01T00:00:00Z",
+        }
         write(os.path.join(self.tdir, "audit-report.json"), audit)
         receipt = {
             "schema_version": 1,

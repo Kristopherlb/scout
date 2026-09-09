@@ -27,7 +27,8 @@ case "$CMD" in
     cat <<'EOF'
 lfd — LFD eval hub
 
-  lfd status [-v] [--target NAME]   per-target health: scores ± CI, sparkline,
+  lfd status [-v] [--json] [--target NAME]
+                                    per-target health: scores ± CI, sparkline,
                                     divergence/liveness/probe flags, economics
   lfd dashboard                     regenerate dashboard/index.html (self-contained)
   lfd doctor [--target NAME]         validate local tools, contract, and sandbox

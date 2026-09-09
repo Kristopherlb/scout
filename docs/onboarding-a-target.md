@@ -145,7 +145,7 @@ scripts/target-repo/request-holdout-check.sh 0.5 0.45 0.55
 
 # In the private hub
 bin/lfd poll myrepo
-bin/lfd status
+bin/lfd status --json
 ```
 
 Confirm that exactly one log row was appended, the target commit received a

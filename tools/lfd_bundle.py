@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 
 import lfd_contract
@@ -11,6 +12,18 @@ import lfd_shims
 
 BUNDLE_SCHEMA_VERSION = 1
 MANIFEST_PATH = os.path.join(".lfd", "bundle-manifest.json")
+TARGET_TEMPLATE_FILES = {
+    os.path.join("scripts", "target-repo", "score-dev.sh"),
+    os.path.join("scripts", "target-repo", "check-holdout-status.sh"),
+    os.path.join("scripts", "target-repo", "materialize-holdout-request.py"),
+    os.path.join("scripts", "target-repo", "request-holdout-check.sh"),
+    os.path.join(".github", "workflows", "holdout-request-tag.yml"),
+}
+EXECUTE_SKILL_FILES = {"SKILL.md"}
+PRIVATE_NAME_PARTS = {
+    "answer", "answers", "canary", "canaries", "holdout", "log", "logs",
+    "run", "runs", "private", "audit", "calibration", "judgment",
+}
 
 
 class BundleError(ValueError):
@@ -79,6 +92,29 @@ def _private_source(relative):
     return False
 
 
+def _validate_source_allowlist(kind, relative):
+    """Reject files outside each intentionally narrow agent-visible source."""
+    if kind == "dev_harness" and relative != "score-dev.sh":
+        raise BundleError("private_material", relative,
+                          "only the developer scorer is agent-visible")
+    if kind == "target_template" and relative not in TARGET_TEMPLATE_FILES:
+        raise BundleError("private_material", relative,
+                          "target template path is not on the public allowlist")
+    if kind == "execute_skill" and relative not in EXECUTE_SKILL_FILES:
+        raise BundleError("private_material", relative,
+                          "execution skill path is not on the public allowlist")
+    if kind == "dev_eval":
+        tokens = {token for part in relative.lower().split(os.sep)
+                  for token in re.split(r"[^a-z0-9]+", part) if token}
+        forbidden = sorted(tokens & PRIVATE_NAME_PARTS)
+        if forbidden:
+            raise BundleError(
+                "private_material", relative,
+                "developer eval path contains private-material names: " +
+                ", ".join(forbidden),
+            )
+
+
 def _copy_file(source, destination):
     os.makedirs(os.path.dirname(destination), exist_ok=True)
     shutil.copy2(source, destination)
@@ -93,15 +129,18 @@ def _bundle_inputs(target_dir, template_root):
         raise BundleError("missing_public_artifact", "goal.md", "design has not emitted a goal")
     sources.append((goal, os.path.join(".lfd", "goal.md")))
 
-    for source_root, destination_root in (
-            (os.path.join(target_dir, "eval", "dev"), os.path.join(".lfd", "eval", "dev")),
-            (os.path.join(target_dir, "dev-harness"), os.path.join(".lfd", "harness")),
-            (os.path.join(template_root, "target-repo"), "")):
+    for kind, source_root, destination_root in (
+            ("dev_eval", os.path.join(target_dir, "eval", "dev"),
+             os.path.join(".lfd", "eval", "dev")),
+            ("dev_harness", os.path.join(target_dir, "dev-harness"),
+             os.path.join(".lfd", "harness")),
+            ("target_template", os.path.join(template_root, "target-repo"), "")):
         links = _symlinks(source_root)
         if links:
             raise BundleError("unsafe_symlink", os.path.join(source_root, links[0]),
                               "agent-visible bundle sources must not contain symbolic links")
         for relative in _files(source_root):
+            _validate_source_allowlist(kind, relative)
             source_relative = os.path.relpath(os.path.join(source_root, relative), target_dir)
             if _private_source(source_relative):
                 raise BundleError("private_material", source_relative,
@@ -119,6 +158,7 @@ def _bundle_inputs(target_dir, template_root):
         raise BundleError("unsafe_symlink", os.path.join(execute_skill, links[0]),
                           "agent-visible bundle sources must not contain symbolic links")
     for relative in _files(execute_skill):
+        _validate_source_allowlist("execute_skill", relative)
         sources.append((os.path.join(execute_skill, relative),
                         os.path.join(".agents", "skills", "lfd-execute", relative)))
 
@@ -229,10 +269,15 @@ def verify_bundle(target_dir, template_root=None):
     return {"status": "ok", "files": len(manifest["files"])}
 
 
-def verify_equipped(checkout):
-    """Verify managed files in a checkout while ignoring caller-owned files."""
+def verify_equipped(checkout, target_dir):
+    """Verify checkout files against the hub-owned source and manifest."""
     checkout = os.path.abspath(checkout)
+    trusted_manifest = verify_bundle(target_dir)
     manifest = _load_manifest(checkout)
+    trusted = _load_manifest(os.path.join(os.path.abspath(target_dir), "bundle"))
+    if manifest != trusted:
+        raise BundleError("bundle_drift", MANIFEST_PATH,
+                          "equipped manifest differs from the trusted hub bundle")
     for relative, expected_hash in manifest["files"].items():
         path = os.path.join(checkout, relative)
         if (_managed_path_has_symlink(checkout, relative)
@@ -242,7 +287,7 @@ def verify_equipped(checkout):
         if _private_source(relative):
             raise BundleError("private_material", relative, "manifest contains a forbidden path")
     lfd_shims.verify_all(checkout)
-    return manifest
+    return {"status": trusted_manifest["status"], "files": len(manifest["files"])}
 
 
 def equip_bundle(target_dir, checkout):
@@ -285,5 +330,5 @@ def equip_bundle(target_dir, checkout):
     _copy_file(os.path.join(bundle_root, MANIFEST_PATH),
                os.path.join(checkout, MANIFEST_PATH))
     lfd_shims.apply_all(checkout)
-    verify_equipped(checkout)
+    verify_equipped(checkout, target_dir)
     return {"status": "ok", "files": len(manifest["files"])}

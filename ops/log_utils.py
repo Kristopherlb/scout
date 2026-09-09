@@ -19,6 +19,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools"))
@@ -97,6 +98,10 @@ def cmd_append(args):
     rows = lfd_common.read_log(args.log)
     if not lfd_holdout_protocol.REQUEST_ID_RE.fullmatch(args.request_id):
         sys.exit("append: request_id is not 32 lowercase hexadecimal characters")
+    if not lfd_holdout_protocol.SHA_RE.fullmatch(args.sha):
+        sys.exit("append: sha is not a full hexadecimal commit ID")
+    if not re.fullmatch(r"[0-9a-f]{7,64}", args.hub_commit):
+        sys.exit("append: hub_commit is not a hexadecimal commit ID")
 
     def req_score(name, value):
         v = lfd_common.validate_float(value, lo=0.0, hi=1.0)
@@ -134,17 +139,11 @@ def cmd_append(args):
     # Agent-reported fields arrive pre-validated as JSON on stdin
     # (the parse-tag-msg output), re-validated here anyway.
     if args.agent_fields:
-        try:
-            agent = json.loads(args.agent_fields)
-        except json.JSONDecodeError:
-            agent = {}
+        agent = lfd_common.parse_tag_message(args.agent_fields)
         for field in lfd_common.AGENT_NUMERIC_FIELDS:
-            row[field] = lfd_common.validate_float(agent.get(field))
-        ci = agent.get("dev_ci")
-        row["dev_ci"] = ci if (isinstance(ci, list) and len(ci) == 2 and
-                               all(lfd_common.validate_float(x) is not None
-                                   for x in ci)) else None
-        row["model_id"] = lfd_common.validate_model_id(agent.get("model_id"))
+            row[field] = agent[field]
+        row["dev_ci"] = agent["dev_ci"]
+        row["model_id"] = agent["model_id"]
     if args.probe_json:
         try:
             probe = json.loads(args.probe_json)
@@ -201,10 +200,10 @@ def main():
     ap.add_argument("--holdout-score", required=True)
     ap.add_argument("--ci-low", required=True)
     ap.add_argument("--ci-high", required=True)
-    ap.add_argument("--liveness", default="ok",
+    ap.add_argument("--liveness", required=True,
                     choices=["ok", "liveness_failed", "skipped"])
-    ap.add_argument("--hub-commit", default="")
-    ap.add_argument("--scoring-seconds", default=None)
+    ap.add_argument("--hub-commit", required=True)
+    ap.add_argument("--scoring-seconds", required=True)
     ap.add_argument("--agent-fields", default="")
     ap.add_argument("--probe-json", default="")
     ap.add_argument("--coverage-variance", default=None)

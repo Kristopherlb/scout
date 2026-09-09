@@ -50,12 +50,6 @@ elif [ "$COVERAGE_VERDICT" = "ok" ]; then
   DESCRIPTION="${DESCRIPTION} — coverage: ok"
 fi
 
-# LFD_STATUS_DRYRUN skips the network write (tests / local poll runs).
-if [ "${LFD_STATUS_DRYRUN:-}" = "1" ]; then
-  echo "[dry-run] would post status for ${SHA}: ${STATE} — ${DESCRIPTION}"
-  exit 0
-fi
-
 : "${EVAL_REPO_STATUS_TOKEN:?EVAL_REPO_STATUS_TOKEN must be configured}"
 : "${GITHUB_API_URL:?GITHUB_API_URL must be configured}"
 API_URL="${GITHUB_API_URL%/}"
@@ -67,4 +61,4 @@ curl --fail-with-body --silent --show-error -X POST \
   -d "{\"state\":\"${STATE}\",\"description\":\"${DESCRIPTION}\",\"context\":\"lfd/holdout\"}" \
   > /dev/null
 
-echo "Posted status for ${SHA}: ${DESCRIPTION}"
+echo "Posted status for ${SHA}: ${STATE} — ${DESCRIPTION}"

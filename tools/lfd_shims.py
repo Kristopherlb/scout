@@ -93,6 +93,9 @@ def verify_all(checkout):
     checkout = os.path.abspath(checkout)
     for relative in DESTINATIONS:
         path = os.path.join(checkout, relative)
+        if _path_has_symlink(checkout, relative):
+            raise ShimError("shim_conflict", relative,
+                            "managed instruction path contains a symbolic link")
         content = _existing(path)
         bounds = _bounds(path, content)
         if bounds is None or content[bounds[0]:bounds[1]] != BLOCK:

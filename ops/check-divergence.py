@@ -17,7 +17,7 @@ import lfd_common  # noqa: E402
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--window", type=int, required=True)
-    p.add_argument("--log", default="log.jsonl")
+    p.add_argument("--log", required=True)
     args = p.parse_args()
     rows = lfd_common.read_log(args.log)
     print("true" if lfd_common.check_divergence(rows, args.window) else "false")

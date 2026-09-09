@@ -165,6 +165,28 @@ class TestHoldoutProtocol(unittest.TestCase):
         refs = git(self.origin, "for-each-ref", "--format=%(refname)").stdout
         self.assertNotIn(f"refs/heads/{branch}", refs)
 
+    def test_fallback_collision_preserves_preexisting_local_branch(self):
+        self.reject_tag_pushes()
+        request_id = "fedcba9876543210fedcba9876543210"
+        branch = f"lfd-request/{request_id}"
+        git(self.repo, "branch", branch, self.sha)
+        before = git(self.repo, "rev-parse", branch).stdout.strip()
+
+        result = self.request(request_id)
+
+        self.assertEqual(result.returncode, 4, result.stderr)
+        document = json.loads(result.stdout)
+        self.assertEqual(document["errors"][0]["code"], "fallback_failed")
+        self.assertEqual(git(self.repo, "rev-parse", branch).stdout.strip(), before)
+
+    def test_materializer_invalid_request_uses_invalid_input_exit(self):
+        result = run(self.repo, sys.executable, MATERIALIZE,
+                     "--event-sha", self.sha,
+                     "--event-ref", "refs/heads/lfd-request/" + "0" * 32,
+                     check=False)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(json.loads(result.stdout)["status"], "error")
+
     def status_with(self, statuses):
         requested = self.request()
         tag = json.loads(requested.stdout)["artifacts"][0]["tag"]

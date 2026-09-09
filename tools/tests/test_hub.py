@@ -12,6 +12,7 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 HUB_ROOT = os.path.abspath(os.path.join(TESTS_DIR, "..", ".."))
 sys.path.insert(0, os.path.join(HUB_ROOT, "tools"))
 import lfd_common  # noqa: E402
+import lfd_contract  # noqa: E402
 
 LOG_UTILS = os.path.join(HUB_ROOT, "ops", "log_utils.py")
 POST_STATUS = os.path.join(HUB_ROOT, "ops", "post-status.sh")
@@ -106,8 +107,10 @@ class TestLogAppend(unittest.TestCase):
         args = [sys.executable, LOG_UTILS, "append", "--log", self.log,
                 "--target-dir", self.dir, "--tag", kw.pop("tag", "holdout-check-1"),
                 "--request-id", kw.pop("request_id", "0" * 32),
-                "--sha", "abc123", "--holdout-score", kw.pop("score", "0.5"),
-                "--ci-low", "0.45", "--ci-high", "0.55"]
+                "--sha", "a" * 40, "--holdout-score", kw.pop("score", "0.5"),
+                "--ci-low", "0.45", "--ci-high", "0.55",
+                "--liveness", "ok", "--hub-commit", "abc1234",
+                "--scoring-seconds", "0"]
         for k, v in kw.items():
             args += [f"--{k.replace('_', '-')}", v]
         return subprocess.run(args, capture_output=True, text=True)
@@ -124,7 +127,7 @@ class TestLogAppend(unittest.TestCase):
         self.assertEqual(out.stdout.strip(), "true")
         by_request = subprocess.run(
             [sys.executable, LOG_UTILS, "has-request", "--log", self.log,
-             "--request-id", "0" * 32, "--sha", "abc123"],
+             "--request-id", "0" * 32, "--sha", "a" * 40],
             capture_output=True, text=True, check=True)
         self.assertEqual(by_request.stdout.strip(), "true")
 
@@ -140,10 +143,12 @@ class TestLogAppend(unittest.TestCase):
             with self.subTest(arguments=arguments):
                 args = [sys.executable, LOG_UTILS, "append", "--log", self.log,
                         "--target-dir", self.dir, "--tag", "holdout-check-1",
-                        "--request-id", "0" * 32, "--sha", "abc123",
+                        "--request-id", "0" * 32, "--sha", "a" * 40,
                         "--holdout-score", arguments.get("score", "0.5"),
                         "--ci-low", arguments.get("ci_low", "0.45"),
-                        "--ci-high", arguments.get("ci_high", "0.55")]
+                        "--ci-high", arguments.get("ci_high", "0.55"),
+                        "--liveness", "ok", "--hub-commit", "abc1234",
+                        "--scoring-seconds", "0"]
                 result = subprocess.run(args, capture_output=True, text=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(lfd_common.read_log(self.log), [])
@@ -173,6 +178,47 @@ class TestStatusAndDashboard(unittest.TestCase):
         self.assertIn("DIVERGENCE", out)
         self.assertIn("entity_swap", out)
         self.assertIn("BELOW FLOOR", out)
+
+    def test_status_json_uses_stable_envelope(self):
+        result = subprocess.run(
+            [os.path.join(HUB_ROOT, "bin", "lfd"), "status",
+             "--target", "_example", "--json"],
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        document = json.loads(result.stdout)
+        self.assertEqual(document["schema_version"], 1)
+        self.assertEqual(document["command"], "status")
+        self.assertEqual(document["status"], "success")
+        self.assertEqual(document["artifacts"][0]["target"], "_example")
+        self.assertIn("detectors", document["artifacts"][0])
+
+    def test_status_json_missing_target_is_invalid_input(self):
+        result = subprocess.run(
+            [os.path.join(HUB_ROOT, "bin", "lfd"), "status",
+             "--target", "missing", "--json"],
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        document = json.loads(result.stdout)
+        self.assertEqual(document["errors"][0]["code"], "target_not_found")
+
+    def test_status_json_malformed_log_is_invalid_runtime_evidence(self):
+        with tempfile.TemporaryDirectory() as hub:
+            target = os.path.join(hub, "targets", "demo")
+            os.makedirs(target)
+            contract = lfd_contract.new_contract("demo", target)
+            contract["lifecycle"]["status"] = "example"
+            with open(os.path.join(target, "target.json"), "w") as stream:
+                json.dump(contract, stream)
+            with open(os.path.join(target, "log.jsonl"), "w") as stream:
+                stream.write("{not json\n")
+            result = subprocess.run([
+                sys.executable, os.path.join(HUB_ROOT, "tools", "lfd_status.py"),
+                "--hub-root", hub, "--target", "demo", "--json",
+            ], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        document = json.loads(result.stdout)
+        self.assertEqual(document["errors"][0]["code"],
+                         "malformed_runtime_evidence")
 
     def test_dashboard_emits_valid_html(self):
         with tempfile.TemporaryDirectory() as td:
@@ -238,13 +284,20 @@ class TestDetectorEnforcement(unittest.TestCase):
     def post(self, divergence="false", divergence_mode="advisory",
              probe="", probe_mode="advisory", coverage="",
              coverage_mode="advisory"):
-        env = dict(os.environ)
-        env["LFD_STATUS_DRYRUN"] = "1"
-        return subprocess.run([
-            POST_STATUS, "https://github.com/example/target.git", "a" * 40,
-            "0.7", "0.6", "0.8", divergence, divergence_mode,
-            probe, probe_mode, coverage, coverage_mode,
-        ], capture_output=True, text=True, env=env)
+        with tempfile.TemporaryDirectory() as directory:
+            curl = os.path.join(directory, "curl")
+            with open(curl, "w") as stream:
+                stream.write("#!/bin/sh\nexit 0\n")
+            os.chmod(curl, 0o755)
+            env = dict(os.environ)
+            env["PATH"] = directory + os.pathsep + env["PATH"]
+            env["EVAL_REPO_STATUS_TOKEN"] = "test-only"
+            env["GITHUB_API_URL"] = "https://api.example.invalid"
+            return subprocess.run([
+                POST_STATUS, "https://github.com/example/target.git", "a" * 40,
+                "0.7", "0.6", "0.8", divergence, divergence_mode,
+                probe, probe_mode, coverage, coverage_mode,
+            ], capture_output=True, text=True, env=env)
 
     def test_advisory_detector_flags_do_not_fail_status(self):
         result = self.post(divergence="true", probe="below-floor",

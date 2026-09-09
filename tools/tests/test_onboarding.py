@@ -121,6 +121,18 @@ class TestOnboarding(unittest.TestCase):
         self.assertEqual(raised.exception.code, "private_material")
         self.assertFalse(os.path.exists(os.path.join(target, "bundle.new")))
 
+    def test_bundle_rejects_private_shaped_files_in_public_roots(self):
+        target = self.start()["target_dir"]
+        self.make_design(target)
+        write(os.path.join(target, "dev-harness", "canaries.json"), "{}\n")
+        with self.assertRaises(lfd_bundle.BundleError) as raised:
+            lfd_bundle.generate_bundle(target, os.path.join(HUB_ROOT, "templates"))
+        self.assertEqual(raised.exception.code, "private_material")
+        with self.assertRaises(lfd_bundle.BundleError) as raised:
+            lfd_bundle._validate_source_allowlist(
+                "execute_skill", os.path.join("references", "private-audit.md"))
+        self.assertEqual(raised.exception.code, "private_material")
+
     def test_bundle_rejects_allowlisted_symlink_source(self):
         target = self.start()["target_dir"]
         self.make_design(target)
@@ -143,6 +155,23 @@ class TestOnboarding(unittest.TestCase):
         with self.assertRaises(lfd_bundle.BundleError) as raised:
             lfd_bundle.equip_bundle(target, self.checkout)
         self.assertEqual(raised.exception.code, "target_conflict")
+
+    def test_status_rechecks_equipped_hashes(self):
+        target = self.start()["target_dir"]
+        lfd_onboard.inspect_target(target, self.checkout)
+        self.make_design(target)
+        lfd_bundle.generate_bundle(target, os.path.join(HUB_ROOT, "templates"))
+        lfd_bundle.equip_bundle(target, self.checkout)
+        managed = os.path.join(self.checkout, ".lfd", "goal.md")
+        write(managed, "tampered\n")
+        manifest_path = os.path.join(self.checkout, lfd_bundle.MANIFEST_PATH)
+        with open(manifest_path) as stream:
+            manifest = json.load(stream)
+        manifest["files"][os.path.join(".lfd", "goal.md")] = lfd_bundle._hash(managed)
+        with open(manifest_path, "w") as stream:
+            json.dump(manifest, stream)
+        state = lfd_onboard.onboarding_status(target, self.checkout)
+        self.assertEqual(state["stage"], "equipped_bundle_invalid")
 
     def test_equip_rejects_managed_destination_symlink(self):
         target = self.start()["target_dir"]
@@ -169,6 +198,18 @@ class TestOnboarding(unittest.TestCase):
             cwd=self.checkout, capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(json.loads(proc.stdout)["void"], False)
+
+    def test_unequipped_dev_command_uses_stable_invalid_input_contract(self):
+        wrapper = os.path.join(
+            HUB_ROOT, "templates", "target-repo", "scripts", "target-repo",
+            "score-dev.sh",
+        )
+        proc = subprocess.run(
+            [wrapper], cwd=self.checkout, capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 2)
+        document = json.loads(proc.stderr)
+        self.assertEqual(document["schema_version"], 1)
+        self.assertEqual(document["errors"][0]["code"], "capability_unavailable")
 
     def test_status_is_derived_from_artifacts(self):
         target = self.start()["target_dir"]
@@ -207,6 +248,36 @@ class TestOnboarding(unittest.TestCase):
                 os.environ["GITHUB_TOKEN"] = old
         github = next(check for check in result["checks"] if check["name"] == "github_credentials")
         self.assertEqual(github["status"], "advisory")
+
+    def test_doctor_invalid_target_uses_invalid_input_envelope(self):
+        result = subprocess.run([
+            os.path.join(HUB_ROOT, "bin", "lfd"), "doctor",
+            "--hub-root", self.hub, "--target", "missing", "--json",
+        ], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        document = json.loads(result.stdout)
+        self.assertEqual(document["schema_version"], 1)
+        self.assertEqual(document["errors"][0]["code"], "missing_contract")
+
+    def test_doctor_invalid_checkout_uses_invalid_input_envelope(self):
+        result = subprocess.run([
+            os.path.join(HUB_ROOT, "bin", "lfd"), "doctor",
+            "--checkout", os.path.join(self.tmp, "not-a-checkout"), "--json",
+        ], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        document = json.loads(result.stdout)
+        self.assertEqual(document["errors"][0]["code"], "invalid_input")
+
+    def test_doctor_missing_git_uses_infrastructure_envelope(self):
+        environment = dict(os.environ)
+        environment["PATH"] = ""
+        result = subprocess.run([
+            sys.executable, os.path.join(HUB_ROOT, "tools", "lfd_doctor.py"),
+            "--checkout", self.checkout, "--json",
+        ], capture_output=True, text=True, env=environment)
+        self.assertEqual(result.returncode, 4)
+        document = json.loads(result.stdout)
+        self.assertEqual(document["errors"][0]["code"], "infrastructure_failure")
 
     def test_unknown_cli_command_fails(self):
         proc = subprocess.run([os.path.join(HUB_ROOT, "bin", "lfd"), "not-a-command"],

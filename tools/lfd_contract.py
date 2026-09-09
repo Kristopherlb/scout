@@ -21,6 +21,34 @@ NAME_RE = re.compile(r"^[a-z0-9_][a-z0-9._-]{0,63}$")
 TAG_PREFIX_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,62}-$")
 DIGEST_IMAGE_RE = re.compile(r"^\S+@sha256:[0-9a-f]{64}$")
 MEMORY_RE = re.compile(r"^[1-9][0-9]*(?:[kKmMgG])?$")
+SHELL_VALUE_PATHS = {
+    "TARGET_NAME": "identity.name",
+    "TARGET_REPO_URL": "identity.repository_url",
+    "HOLDOUT_PROTOCOL_VERSION": "holdout.protocol_version",
+    "HOLDOUT_TAG_PREFIX": "holdout.tag_prefix",
+    "STATUS": "lifecycle.status",
+    "MIN_HOURS_BETWEEN_HOLDOUT": "holdout.min_hours_between",
+    "BUDGET_MAX_HOLDOUT_RUNS": "holdout.max_runs",
+    "DIVERGENCE_WINDOW_CYCLES": "detectors.divergence.window_cycles",
+    "DIVERGENCE_ENFORCEMENT": "detectors.divergence.enforcement",
+    "PROBE_ON_HOLDOUT": "detectors.probe.mode",
+    "PROBE_EVERY_K": "detectors.probe.every_k",
+    "PROBE_FLOOR": "detectors.probe.floor",
+    "PROBE_ENFORCEMENT": "detectors.probe.enforcement",
+    "COVERAGE_VARIANCE_FLOOR": "detectors.coverage_variance.floor",
+    "COVERAGE_VARIANCE_ENFORCEMENT": "detectors.coverage_variance.enforcement",
+    "BUILD_CMD": "liveness.build_command",
+    "BOOT_CMD": "liveness.boot_command",
+    "HEALTH_CHECK": "liveness.health_check",
+    "LIVENESS_EXEMPT": "liveness.exemption",
+    "LIVENESS_TIMEOUT": "liveness.timeout_seconds",
+    "LFD_SANDBOX": "sandbox.backend",
+    "SANDBOX_IMAGE": "sandbox.image",
+    "SANDBOX_CPUS": "sandbox.cpus",
+    "SANDBOX_MEMORY": "sandbox.memory",
+    "SANDBOX_PIDS_LIMIT": "sandbox.pids_limit",
+    "EXECUTOR_MODEL": "executor.model",
+}
 
 
 class ContractError(ValueError):
@@ -230,34 +258,8 @@ def iter_targets(hub_root):
 
 def shell_values(contract):
     """Return the fixed adapter vocabulary consumed by hub shell scripts."""
-    paths = {
-        "TARGET_REPO_URL": "identity.repository_url",
-        "HOLDOUT_PROTOCOL_VERSION": "holdout.protocol_version",
-        "HOLDOUT_TAG_PREFIX": "holdout.tag_prefix",
-        "STATUS": "lifecycle.status",
-        "MIN_HOURS_BETWEEN_HOLDOUT": "holdout.min_hours_between",
-        "BUDGET_MAX_HOLDOUT_RUNS": "holdout.max_runs",
-        "DIVERGENCE_WINDOW_CYCLES": "detectors.divergence.window_cycles",
-        "DIVERGENCE_ENFORCEMENT": "detectors.divergence.enforcement",
-        "PROBE_ON_HOLDOUT": "detectors.probe.mode",
-        "PROBE_EVERY_K": "detectors.probe.every_k",
-        "PROBE_FLOOR": "detectors.probe.floor",
-        "PROBE_ENFORCEMENT": "detectors.probe.enforcement",
-        "COVERAGE_VARIANCE_FLOOR": "detectors.coverage_variance.floor",
-        "COVERAGE_VARIANCE_ENFORCEMENT": "detectors.coverage_variance.enforcement",
-        "BUILD_CMD": "liveness.build_command",
-        "BOOT_CMD": "liveness.boot_command",
-        "HEALTH_CHECK": "liveness.health_check",
-        "LIVENESS_EXEMPT": "liveness.exemption",
-        "LIVENESS_TIMEOUT": "liveness.timeout_seconds",
-        "LFD_SANDBOX": "sandbox.backend",
-        "SANDBOX_IMAGE": "sandbox.image",
-        "SANDBOX_CPUS": "sandbox.cpus",
-        "SANDBOX_MEMORY": "sandbox.memory",
-        "SANDBOX_PIDS_LIMIT": "sandbox.pids_limit",
-        "EXECUTOR_MODEL": "executor.model",
-    }
-    return {name: str(value(contract, path)) for name, path in paths.items()}
+    return {name: str(value(contract, path))
+            for name, path in SHELL_VALUE_PATHS.items()}
 
 
 def main():
