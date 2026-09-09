@@ -85,6 +85,15 @@ def generate_bundle(target_dir, template_root):
             sources.append((os.path.join(source_root, relative),
                             os.path.join(destination_root, relative)))
 
+    execute_skill = os.path.join(os.path.dirname(os.path.abspath(template_root)),
+                                 "skills", "lfd-execute")
+    if not os.path.isfile(os.path.join(execute_skill, "SKILL.md")):
+        raise BundleError("missing_public_artifact", "skills/lfd-execute/SKILL.md",
+                          "target-side execution skill is required")
+    for relative in _files(execute_skill):
+        sources.append((os.path.join(execute_skill, relative),
+                        os.path.join(".agents", "skills", "lfd-execute", relative)))
+
     if not any(relative == os.path.join(".lfd", "harness", "score-dev.sh")
                for _, relative in sources):
         raise BundleError("missing_public_artifact", "dev-harness/score-dev.sh",

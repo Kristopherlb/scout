@@ -108,7 +108,7 @@ def run_mechanical(hub_root, target):
     target_dir = os.path.join(os.path.abspath(hub_root), "targets", target)
     if not os.path.isdir(target_dir):
         raise AuditError("target_not_found", target)
-    checker = os.path.join(hub_root, "skills", "lfd-design", "scripts", "design",
+    checker = os.path.join(hub_root, "skills", "lfd-shared", "scripts",
                            "audit-checklist.py")
     proc = subprocess.run([
         sys.executable, checker,
