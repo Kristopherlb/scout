@@ -2,16 +2,6 @@
 # Submit an immutable LFD v1 request without modifying the caller's worktree.
 set -euo pipefail
 
-usage="Usage: $0 <dev_score> <dev_ci_low> <dev_ci_high> [model_id] [tokens_in] [tokens_out] [cost_usd] [wall_clock_secs]"
-DEV_SCORE="${1:?$usage}"
-DEV_CI_LOW="${2:?missing dev_ci_low}"
-DEV_CI_HIGH="${3:?missing dev_ci_high}"
-MODEL_ID="${4:-}"
-TOKENS_IN="${5:-}"
-TOKENS_OUT="${6:-}"
-COST_USD="${7:-}"
-WALL_CLOCK="${8:-}"
-
 emit_error() {
   python3 - "$1" "$2" <<'PY'
 import json, sys
@@ -22,11 +12,28 @@ print(json.dumps({"schema_version": 1, "command": "holdout.request",
 PY
 }
 
+usage="Usage: $0 <dev_score> <dev_ci_low> <dev_ci_high> [model_id] [tokens_in] [tokens_out] [cost_usd] [wall_clock_secs]"
+if [ "$#" -lt 3 ] || [ "$#" -gt 8 ]; then
+  emit_error "invalid_input" "$usage"
+  exit 2
+fi
+DEV_SCORE="$1"
+DEV_CI_LOW="$2"
+DEV_CI_HIGH="$3"
+MODEL_ID="${4:-}"
+TOKENS_IN="${5:-}"
+TOKENS_OUT="${6:-}"
+COST_USD="${7:-}"
+WALL_CLOCK="${8:-}"
+
 if ! REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
   emit_error "invalid_input" "current directory is not a Git working tree"
   exit 2
 fi
-cd "$REPO_ROOT"
+if ! cd "$REPO_ROOT"; then
+  emit_error "infrastructure_failure" "could not enter the Git working tree"
+  exit 4
+fi
 PROTOCOL_FILE=".lfd/holdout-protocol.json"
 if [ ! -f "$PROTOCOL_FILE" ]; then
   emit_error "missing_protocol" "$PROTOCOL_FILE is required"
@@ -59,8 +66,16 @@ PY
 fi
 PROTOCOL_VERSION=$(printf '%s\n' "$PROTOCOL_VALUES" | sed -n '1p')
 TAG_PREFIX=$(printf '%s\n' "$PROTOCOL_VALUES" | sed -n '2p')
-REQUESTED_SHA=$(git rev-parse HEAD)
-REQUEST_ID="${LFD_REQUEST_ID:-$(python3 -c 'import secrets; print(secrets.token_hex(16))')}"
+if ! REQUESTED_SHA=$(git rev-parse HEAD 2>/dev/null); then
+  emit_error "infrastructure_failure" "could not resolve the requested commit"
+  exit 4
+fi
+if [ -n "${LFD_REQUEST_ID:-}" ]; then
+  REQUEST_ID="$LFD_REQUEST_ID"
+elif ! REQUEST_ID=$(python3 -c 'import secrets; print(secrets.token_hex(16))'); then
+  emit_error "infrastructure_failure" "could not generate a request ID"
+  exit 4
+fi
 if [[ ! "$REQUEST_ID" =~ ^[0-9a-f]{32}$ ]]; then
   emit_error "invalid_request_id" "request ID must be 32 lowercase hexadecimal characters"
   exit 2
@@ -118,16 +133,24 @@ PY
   exit 2
 fi
 
-PUSH_ERROR=$(mktemp)
+if ! PUSH_ERROR=$(mktemp); then
+  emit_error "infrastructure_failure" "could not create a temporary error file"
+  exit 4
+fi
 TEMP_ROOT=""
 WORKTREE=""
 BRANCH=""
+BRANCH_CREATED=0
+LOCAL_TAG_OWNED=0
 cleanup() {
   if [ -n "$WORKTREE" ] && [ -d "$WORKTREE" ]; then
     git -C "$REPO_ROOT" worktree remove --force "$WORKTREE" >/dev/null 2>&1 || true
   fi
-  if [ -n "$BRANCH" ]; then
+  if [ "$BRANCH_CREATED" = "1" ]; then
     git -C "$REPO_ROOT" branch -D "$BRANCH" >/dev/null 2>&1 || true
+  fi
+  if [ "$LOCAL_TAG_OWNED" = "1" ]; then
+    git -C "$REPO_ROOT" tag -d "$TAG" >/dev/null 2>&1 || true
   fi
   [ -z "$TEMP_ROOT" ] || rm -rf "$TEMP_ROOT"
   rm -f "$PUSH_ERROR"
@@ -138,7 +161,9 @@ if ! git tag -a "$TAG" -m "$MSG" "$REQUESTED_SHA" 2>"$PUSH_ERROR"; then
   emit_error "request_collision" "request tag already exists locally"
   exit 2
 fi
+LOCAL_TAG_OWNED=1
 if git push origin "refs/tags/${TAG}" 2>"$PUSH_ERROR"; then
+  LOCAL_TAG_OWNED=0
   python3 - "$TAG" "$REQUESTED_SHA" <<'PY'
 import json, sys
 print(json.dumps({"schema_version": 1, "command": "holdout.request",
@@ -150,23 +175,47 @@ PY
 fi
 
 if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-  git tag -d "$TAG" >/dev/null
+  if ! git tag -d "$TAG" >/dev/null 2>"$PUSH_ERROR"; then
+    emit_error "cleanup_failure" "could not remove the temporary local request tag"
+    exit 4
+  fi
+  LOCAL_TAG_OWNED=0
   emit_error "request_collision" "request tag already exists on origin"
   exit 2
+else
+  LS_REMOTE_STATUS=$?
+  if [ "$LS_REMOTE_STATUS" -ne 2 ]; then
+    emit_error "transport_failure" "could not inspect the remote request tag"
+    exit 4
+  fi
 fi
 
-git tag -d "$TAG" >/dev/null
-TEMP_ROOT=$(mktemp -d)
+if ! git tag -d "$TAG" >/dev/null 2>"$PUSH_ERROR"; then
+  emit_error "cleanup_failure" "could not remove the temporary local request tag"
+  exit 4
+fi
+LOCAL_TAG_OWNED=0
+if ! TEMP_ROOT=$(mktemp -d); then
+  emit_error "infrastructure_failure" "could not create a fallback workspace"
+  exit 4
+fi
 WORKTREE="$TEMP_ROOT/worktree"
 BRANCH="lfd-request/${REQUEST_ID}"
 if ! git worktree add --quiet --detach "$WORKTREE" "$REQUESTED_SHA" 2>"$PUSH_ERROR"; then
   emit_error "fallback_failed" "could not create isolated request worktree"
   exit 4
 fi
-git -C "$WORKTREE" switch --quiet -c "$BRANCH"
+if ! git -C "$WORKTREE" switch --quiet -c "$BRANCH" 2>"$PUSH_ERROR"; then
+  emit_error "fallback_failed" "could not create ephemeral request branch"
+  exit 4
+fi
+BRANCH_CREATED=1
 REQUEST_LOG="$WORKTREE/.github/holdout-requests.jsonl"
-mkdir -p "$(dirname "$REQUEST_LOG")"
-python3 - "$REQUEST_LOG" "$TAG" "$REQUESTED_SHA" "$MSG" <<'PY'
+if ! mkdir -p "$(dirname "$REQUEST_LOG")"; then
+  emit_error "fallback_failed" "could not create the fallback request directory"
+  exit 4
+fi
+if ! python3 - "$REQUEST_LOG" "$TAG" "$REQUESTED_SHA" "$MSG" <<'PY'
 import json, sys
 path, tag, target, payload = sys.argv[1:]
 with open(path, "a") as stream:
@@ -174,10 +223,26 @@ with open(path, "a") as stream:
                              "payload": json.loads(payload)},
                             separators=(",", ":"), sort_keys=True) + "\n")
 PY
-git -C "$WORKTREE" add -- .github/holdout-requests.jsonl
-git -C "$WORKTREE" commit --quiet -m "holdout request: ${REQUEST_ID}"
-REQUEST_COMMIT=$(git -C "$WORKTREE" rev-parse HEAD)
-PARENT=$(git -C "$WORKTREE" rev-parse HEAD^)
+then
+  emit_error "fallback_failed" "could not write the fallback request payload"
+  exit 4
+fi
+if ! git -C "$WORKTREE" add -- .github/holdout-requests.jsonl 2>"$PUSH_ERROR"; then
+  emit_error "fallback_failed" "could not stage the fallback request payload"
+  exit 4
+fi
+if ! git -C "$WORKTREE" commit --quiet -m "holdout request: ${REQUEST_ID}" 2>"$PUSH_ERROR"; then
+  emit_error "fallback_failed" "could not commit the fallback request payload"
+  exit 4
+fi
+if ! REQUEST_COMMIT=$(git -C "$WORKTREE" rev-parse HEAD 2>"$PUSH_ERROR"); then
+  emit_error "fallback_failed" "could not resolve the fallback request commit"
+  exit 4
+fi
+if ! PARENT=$(git -C "$WORKTREE" rev-parse HEAD^ 2>"$PUSH_ERROR"); then
+  emit_error "fallback_failed" "could not resolve the fallback request parent"
+  exit 4
+fi
 if [ "$PARENT" != "$REQUESTED_SHA" ]; then
   emit_error "parent_mismatch" "fallback request parent is not the requested commit"
   exit 4

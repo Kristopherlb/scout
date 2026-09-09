@@ -1,5 +1,4 @@
 {
-  "note": "Executable synthetic calibration produced by score-holdout.sh for the committed good and bad fixtures.",
   "good_score": 1.0,
   "good_ci": [1.0, 1.0],
   "bad_score": 0.0,

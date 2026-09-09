@@ -23,44 +23,32 @@ AUDIT_FINDINGS = {
 }
 
 
+def valid_mechanical_results(results):
+    """Mechanical evidence is non-empty, explicit, supported, and all passing."""
+    if not isinstance(results, list) or not results:
+        return False
+    for result in results:
+        if (not isinstance(result, dict)
+                or set(result) != {"item", "verdict", "detail"}
+                or not isinstance(result["item"], str)
+                or not result["item"].strip()
+                or result["verdict"] != "PASS"
+                or not isinstance(result["detail"], str)
+                or not result["detail"].strip()):
+            return False
+    return True
+
+
 def config_value(config, key, *, allow_empty=False):
     """Read the fixed shell-adapter vocabulary from a validated contract.
 
     Flat dictionaries remain accepted for pure function tests; runtime callers
     obtain nested documents exclusively through ``lfd_contract.load_target``.
     """
-    paths = {
-        "TARGET_NAME": "identity.name",
-        "TARGET_REPO_URL": "identity.repository_url",
-        "HOLDOUT_PROTOCOL_VERSION": "holdout.protocol_version",
-        "HOLDOUT_TAG_PREFIX": "holdout.tag_prefix",
-        "STATUS": "lifecycle.status",
-        "MIN_HOURS_BETWEEN_HOLDOUT": "holdout.min_hours_between",
-        "BUDGET_MAX_HOLDOUT_RUNS": "holdout.max_runs",
-        "DIVERGENCE_WINDOW_CYCLES": "detectors.divergence.window_cycles",
-        "DIVERGENCE_ENFORCEMENT": "detectors.divergence.enforcement",
-        "PROBE_ON_HOLDOUT": "detectors.probe.mode",
-        "PROBE_EVERY_K": "detectors.probe.every_k",
-        "PROBE_FLOOR": "detectors.probe.floor",
-        "PROBE_ENFORCEMENT": "detectors.probe.enforcement",
-        "COVERAGE_VARIANCE_FLOOR": "detectors.coverage_variance.floor",
-        "COVERAGE_VARIANCE_ENFORCEMENT": "detectors.coverage_variance.enforcement",
-        "BUILD_CMD": "liveness.build_command",
-        "BOOT_CMD": "liveness.boot_command",
-        "HEALTH_CHECK": "liveness.health_check",
-        "LIVENESS_EXEMPT": "liveness.exemption",
-        "LIVENESS_TIMEOUT": "liveness.timeout_seconds",
-        "LFD_SANDBOX": "sandbox.backend",
-        "SANDBOX_IMAGE": "sandbox.image",
-        "SANDBOX_CPUS": "sandbox.cpus",
-        "SANDBOX_MEMORY": "sandbox.memory",
-        "SANDBOX_PIDS_LIMIT": "sandbox.pids_limit",
-        "EXECUTOR_MODEL": "executor.model",
-    }
     if key in config:
         value = config[key]
-    elif key in paths:
-        value = lfd_contract.value(config, paths[key])
+    elif key in lfd_contract.SHELL_VALUE_PATHS:
+        value = lfd_contract.value(config, lfd_contract.SHELL_VALUE_PATHS[key])
     else:
         raise ConfigError("missing_field", key, "required configuration value is missing")
     if not allow_empty and not str(value).strip():
@@ -295,9 +283,16 @@ def audit_state(target_dir):
         return "failed", "audit-report.json is not valid JSON"
     if report.get("schema_version") != 1 or report.get("state") != "complete":
         return "incomplete", "audit report is not a complete version-1 finalization"
+    if set(report) != {"schema_version", "state", "verdict", "mechanical_results",
+                       "judgment", "hashes", "finalized_at"}:
+        return "failed", "final audit has a malformed document shape"
     verdict = report.get("verdict")
     if verdict != "PASS":
         return "failed", f"audit verdict is {verdict!r}, not PASS"
+    if not valid_mechanical_results(report.get("mechanical_results")):
+        return "failed", "final audit contains malformed or failed mechanical evidence"
+    if not isinstance(report.get("finalized_at"), str) or not report["finalized_at"].strip():
+        return "failed", "final audit is missing its finalization timestamp"
     judgment = report.get("judgment")
     recorded = report.get("hashes")
     if not isinstance(judgment, dict) or not isinstance(recorded, dict):
@@ -339,17 +334,38 @@ def calibration_state(target_dir):
     try:
         with open(path) as f:
             rep = json.load(f)
-        good_ci = rep["good_ci"]
-        bad_ci = rep["bad_ci"]
-        assert len(good_ci) == 2 and len(bad_ci) == 2
-        good_lo = float(good_ci[0])
-        bad_hi = float(bad_ci[1])
-    except (json.JSONDecodeError, ValueError, KeyError, TypeError, AssertionError):
-        return "invalid", "calibration-report.json missing good_ci/bad_ci as [lo, hi]"
+        if not isinstance(rep, dict) or set(rep) != {
+                "good_score", "good_ci", "bad_score", "bad_ci"}:
+            raise ValueError("unexpected calibration report shape")
+
+        def bounded_number(value):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError("calibration values must be numeric")
+            parsed = float(value)
+            if not 0 <= parsed <= 1:
+                raise ValueError("calibration values must be finite and between 0 and 1")
+            return parsed
+
+        def interval(value):
+            if not isinstance(value, list) or len(value) != 2:
+                raise ValueError("calibration intervals must be [lo, hi]")
+            low, high = (bounded_number(item) for item in value)
+            if low > high:
+                raise ValueError("calibration interval lower bound exceeds upper bound")
+            return low, high
+
+        good_score = bounded_number(rep["good_score"])
+        bad_score = bounded_number(rep["bad_score"])
+        good_lo, good_hi = interval(rep["good_ci"])
+        bad_lo, bad_hi = interval(rep["bad_ci"])
+        if not good_lo <= good_score <= good_hi or not bad_lo <= bad_score <= bad_hi:
+            raise ValueError("calibration score is not contained by its interval")
+    except (json.JSONDecodeError, OSError, ValueError, KeyError, TypeError):
+        return "invalid", "calibration-report.json must contain bounded scores and ordered containing intervals"
     if good_lo <= bad_hi:
         return "overlapping", (f"good CI lower bound {good_lo} does not clear bad "
                                f"CI upper bound {bad_hi} — scorer can't separate them")
-    return "ok", f"good [{good_ci[0]}, {good_ci[1]}] clears bad [{bad_ci[0]}, {bad_ci[1]}]"
+    return "ok", f"good [{good_lo}, {good_hi}] clears bad [{bad_lo}, {bad_hi}]"
 
 
 def activation_prerequisite_blockers(config, target_dir):

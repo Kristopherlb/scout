@@ -90,8 +90,14 @@ for path in sorted(glob.glob(sys.argv[1] + "/*.json")):
 try:
     with open(sys.argv[2]) as stream:
         predictions = json.load(stream)
+    if (not isinstance(predictions, list)
+            or any(not isinstance(item, dict) or set(item) != {"id", "answer"}
+                   for item in predictions)):
+        raise TypeError("predictions must contain only id and answer")
     actual = {item["id"]: item["answer"] for item in predictions}
-except (OSError, json.JSONDecodeError, KeyError, TypeError):
+    if len(actual) != len(predictions) or set(actual) != set(expected):
+        raise ValueError("prediction identities must exactly match the cases")
+except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
     actual = {}
 scores = [1.0 if actual.get(case_id) == answer else 0.0
           for case_id, answer in expected.items()]

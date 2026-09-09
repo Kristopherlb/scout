@@ -7,11 +7,13 @@ harness_version): no number without provenance.
 Usage: lfd_status.py [--hub-root PATH] [--target NAME]
 """
 import argparse
+import json
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lfd_common  # noqa: E402
+import lfd_interface  # noqa: E402
 
 
 def fmt_ci(score, ci):
@@ -35,6 +37,65 @@ def efficiency(rows):
     per_dollar = delta / cost if cost > 0 else None
     per_mtok = delta / (tokens / 1e6) if tokens > 0 else None
     return per_dollar, per_mtok
+
+
+def target_record(name, config, target_dir):
+    """Return the machine-readable health record behind the text rendering."""
+    rows = lfd_common.read_log(os.path.join(target_dir, "log.jsonl"))
+    audit_state, audit_detail = lfd_common.audit_state(target_dir)
+    calibration_state, calibration_detail = lfd_common.calibration_state(target_dir)
+    liveness_state, liveness_detail = lfd_common.liveness_state(config)
+    window = lfd_common.config_int(config, "DIVERGENCE_WINDOW_CYCLES", minimum=2)
+    probe_floor = lfd_common.config_float(config, "PROBE_FLOOR", minimum=0, maximum=1)
+    coverage_floor = lfd_common.config_float(
+        config, "COVERAGE_VARIANCE_FLOOR", minimum=0, maximum=1)
+    probe_rows = [row for row in rows if row.get("probe")]
+    coverage_rows = [row for row in rows if row.get("coverage_variance") is not None]
+    probe_breaches = (lfd_common.probe_floor_breaches(probe_rows[-1], probe_floor)
+                      if probe_rows else {})
+    coverage_value = (coverage_rows[-1]["coverage_variance"]
+                      if coverage_rows else None)
+    latest = None
+    if rows:
+        row = rows[-1]
+        latest = {key: row.get(key) for key in (
+            "cycle", "timestamp", "sha", "holdout_score", "holdout_ci",
+            "dev_score", "dev_ci", "harness_version", "liveness",
+        )}
+    return {
+        "target": name,
+        "lifecycle": lfd_common.config_value(config, "STATUS"),
+        "gates": {
+            "audit": {"status": audit_state, "detail": audit_detail},
+            "calibration": {"status": calibration_state, "detail": calibration_detail},
+            "liveness": {"status": liveness_state, "detail": liveness_detail},
+        },
+        "activation_blockers": lfd_common.activation_blockers(config, target_dir),
+        "runs": {
+            "count": len(rows),
+            "budget": lfd_common.config_int(
+                config, "BUDGET_MAX_HOLDOUT_RUNS", minimum=1),
+            "latest": latest,
+        },
+        "detectors": {
+            "divergence": {
+                "flagged": lfd_common.check_divergence(rows, window),
+                "enforcement": lfd_common.config_value(config, "DIVERGENCE_ENFORCEMENT"),
+            },
+            "probe": {
+                "floor": probe_floor,
+                "breaches": probe_breaches,
+                "enforcement": lfd_common.config_value(config, "PROBE_ENFORCEMENT"),
+            },
+            "coverage_variance": {
+                "floor": coverage_floor,
+                "latest": coverage_value,
+                "flagged": coverage_value is not None and coverage_value < coverage_floor,
+                "enforcement": lfd_common.config_value(
+                    config, "COVERAGE_VARIANCE_ENFORCEMENT"),
+            },
+        },
+    }
 
 
 def render_target(name, config, target_dir, verbose=False):
@@ -136,26 +197,73 @@ def main():
         os.path.dirname(os.path.abspath(__file__)), ".."))
     p.add_argument("--target", default=None)
     p.add_argument("-v", "--verbose", action="store_true")
+    p.add_argument("--json", action="store_true")
     args = p.parse_args()
 
     hub_root = os.path.abspath(args.hub_root)
-    targets = list(lfd_common.iter_targets(hub_root))
+    try:
+        targets = list(lfd_common.iter_targets(hub_root))
+    except lfd_common.ConfigError as exc:
+        document = lfd_interface.envelope(
+            "status", args.target, "error", errors=[{
+                "code": exc.code, "message": str(exc),
+            }],
+        )
+        if args.json:
+            print(json.dumps(document, sort_keys=True))
+        else:
+            print(f"configuration error: {exc}", file=sys.stderr)
+        return 2
     if args.target:
         targets = [t for t in targets if t[0] == args.target]
         if not targets:
-            sys.exit(f"no such target: {args.target}")
+            document = lfd_interface.envelope(
+                "status", args.target, "error", errors=[{
+                    "code": "target_not_found", "message": f"no such target: {args.target}",
+                }],
+            )
+            if args.json:
+                print(json.dumps(document, sort_keys=True))
+            else:
+                print(document["errors"][0]["message"], file=sys.stderr)
+            return 2
     if not targets:
-        print("No targets registered. Onboard one with: bin/lfd onboard start <name> <repo-url>")
-        return
+        if args.json:
+            print(json.dumps(lfd_interface.envelope(
+                "status", status="success", stage="empty",
+                next_actions=["onboard start"],
+            ), sort_keys=True))
+        else:
+            print("No targets registered. Onboard one with: bin/lfd onboard start <name> <repo-url>")
+        return 0
+
+    if args.json:
+        try:
+            records = [target_record(name, config, target_dir)
+                       for name, config, target_dir in targets]
+        except (lfd_common.ConfigError, json.JSONDecodeError, OSError, ValueError) as exc:
+            print(json.dumps(lfd_interface.envelope(
+                "status", args.target, "error", errors=[{
+                    "code": getattr(exc, "code", "malformed_runtime_evidence"),
+                    "message": str(exc),
+                }],
+            ), sort_keys=True))
+            return 2
+        print(json.dumps(lfd_interface.envelope(
+            "status", args.target, "success", stage="overview", artifacts=records,
+        ), sort_keys=True))
+        return 0
 
     print(f"LFD eval hub — {len(targets)} target(s)\n")
     for name, config, target_dir in targets:
         try:
             print(render_target(name, config, target_dir, args.verbose))
-        except lfd_common.ConfigError as exc:
-            print(f"● {name}  [configuration error]\n  🚩 {exc}")
+        except (lfd_common.ConfigError, json.JSONDecodeError, OSError, ValueError) as exc:
+            print(f"● {name}  [invalid runtime evidence]\n  🚩 {exc}")
+            return 2
         print()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

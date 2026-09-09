@@ -13,6 +13,7 @@ import lfd_bundle  # noqa: E402
 import lfd_common  # noqa: E402
 import lfd_contract  # noqa: E402
 import lfd_interface  # noqa: E402
+import lfd_shims  # noqa: E402
 
 envelope = lfd_interface.envelope
 
@@ -145,9 +146,15 @@ def onboarding_status(target_dir, checkout=None):
         lfd_bundle.verify_bundle(target_dir)
     except lfd_bundle.BundleError:
         return {"stage": "bundle_invalid", "next_actions": ["regenerate bundle"]}
-    if checkout and not os.path.isfile(os.path.join(os.path.abspath(checkout),
-                                                    lfd_bundle.MANIFEST_PATH)):
-        return {"stage": "needs_equip", "next_actions": ["onboard equip"]}
+    if checkout:
+        checkout = os.path.abspath(checkout)
+        if not os.path.isfile(os.path.join(checkout, lfd_bundle.MANIFEST_PATH)):
+            return {"stage": "needs_equip", "next_actions": ["onboard equip"]}
+        try:
+            lfd_bundle.verify_equipped(checkout, target_dir)
+        except (lfd_bundle.BundleError, lfd_shims.ShimError):
+            return {"stage": "equipped_bundle_invalid",
+                    "next_actions": ["restore managed files, then onboard verify"]}
     audit, _ = lfd_common.audit_state(target_dir)
     if audit == "missing":
         return {"stage": "needs_audit", "next_actions": ["audit mechanical"]}
@@ -200,15 +207,12 @@ def doctor(hub_root, target=None, checkout=None, require_github=False):
     checks.append({"name": "github_credentials",
                    "status": "ok" if token else ("fail" if require_github else "advisory")})
     if target:
-        try:
-            lfd_contract.load_target(os.path.join(os.path.abspath(hub_root), "targets", target))
-            status = "ok"
-        except lfd_contract.ContractError:
-            status = "fail"
-        checks.append({"name": "target_contract", "status": status})
+        lfd_contract.load_target(os.path.join(os.path.abspath(hub_root), "targets", target))
+        checks.append({"name": "target_contract", "status": "ok"})
     if checkout:
-        checks.append({"name": "checkout", "status": "ok" if _is_git_checkout(
-            os.path.abspath(checkout)) else "fail"})
+        if not _is_git_checkout(os.path.abspath(checkout)):
+            raise ValueError("checkout must be a Git working tree")
+        checks.append({"name": "checkout", "status": "ok"})
     return {"checks": checks, "status": "fail" if any(c["status"] == "fail" for c in checks) else "ok"}
 
 
@@ -263,7 +267,7 @@ def main():
         elif args.verb == "verify":
             lfd_bundle.verify_bundle(target_dir)
             if args.checkout:
-                lfd_bundle.verify_equipped(os.path.abspath(args.checkout))
+                lfd_bundle.verify_equipped(os.path.abspath(args.checkout), target_dir)
             state = onboarding_status(target_dir, args.checkout)
             document = envelope("onboard.verify", args.name, stage=state["stage"],
                                 next_actions=state["next_actions"])
@@ -289,6 +293,12 @@ def main():
                             status="error", errors=[{"code": code, "message": str(exc)}])
         _emit(document, args.json)
         return 2
+    except (OSError, subprocess.SubprocessError) as exc:
+        document = envelope(f"onboard.{args.verb}", getattr(args, "name", None),
+                            status="error", errors=[{
+                                "code": "infrastructure_failure", "message": str(exc)}])
+        _emit(document, args.json)
+        return 4
 
 
 if __name__ == "__main__":

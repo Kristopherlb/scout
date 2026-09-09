@@ -42,7 +42,7 @@ ShellCheck, Ruff, Mypy, and Coverage.
 
 ```bash
 bin/lfd walkthrough
-bin/lfd status
+bin/lfd status --json
 bin/lfd dashboard
 bin/lfd doctor
 bin/lfd test

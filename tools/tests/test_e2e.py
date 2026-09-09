@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """End-to-end pipeline test — exercises the real ops/poll-and-score.sh
 against a throwaway local git repo. Hermetic: no network (local file://
-remote, post-status in dry-run) and a test-scoped Docker CLI double. Proves
+remote plus test-scoped curl and Docker CLI doubles). Proves
 the full path — tag discovery, pinned checkout, liveness gate, scoring,
 validated append, dedup, rate limit — actually holds together, which unit
 tests of the pieces can't.
@@ -91,6 +91,10 @@ export LFD_OUT="$output"
 exec "$@"
 """)
         os.chmod(docker, 0o755)
+        curl = os.path.join(self.fake_bin, "curl")
+        with open(curl, "w") as f:
+            f.write("#!/bin/sh\nexit 0\n")
+        os.chmod(curl, 0o755)
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
@@ -181,8 +185,8 @@ exec "$@"
     def run_poll(self, summary=None, extra_env=None):
         env = dict(os.environ)
         env["PATH"] = self.fake_bin + os.pathsep + env["PATH"]
-        env["LFD_STATUS_DRYRUN"] = "1"
-        env.pop("EVAL_REPO_STATUS_TOKEN", None)
+        env["EVAL_REPO_STATUS_TOKEN"] = "test-only"
+        env["GITHUB_API_URL"] = "https://api.example.invalid"
         if extra_env:
             env.update(extra_env)
         if summary:

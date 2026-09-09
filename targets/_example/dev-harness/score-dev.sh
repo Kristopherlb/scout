@@ -40,7 +40,10 @@ for case in cases:
     if result.returncode != 0:
         continue
     try:
-        prediction = json.loads(result.stdout)["answer"]
+        response = json.loads(result.stdout)
+        if not isinstance(response, dict) or set(response) != {"answer"}:
+            continue
+        prediction = response["answer"]
     except (json.JSONDecodeError, KeyError, TypeError):
         continue
     correct += prediction == case["answer"]

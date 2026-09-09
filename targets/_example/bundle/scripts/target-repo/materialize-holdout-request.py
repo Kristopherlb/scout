@@ -7,7 +7,6 @@ import re
 import subprocess
 import sys
 
-
 REQUEST_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 
@@ -116,9 +115,13 @@ def main():
         artifact = materialize(args.event_sha, args.event_ref)
         document = envelope("success", "materialized", [artifact])
         code = 0
-    except (MaterializeError, OSError, subprocess.SubprocessError) as exc:
+    except MaterializeError as exc:
         document = envelope("error", errors=[{
-            "code": getattr(exc, "code", "transport_failure"), "message": str(exc)}])
+            "code": exc.code, "message": str(exc)}])
+        code = 4 if exc.code in {"transport_failure", "cleanup_failure"} else 2
+    except (OSError, subprocess.SubprocessError) as exc:
+        document = envelope("error", errors=[{
+            "code": "transport_failure", "message": str(exc)}])
         code = 4
     print(json.dumps(document, sort_keys=True))
     return code

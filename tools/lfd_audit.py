@@ -73,6 +73,38 @@ def _validate_judgment(judgment):
             raise AuditError("incomplete_judgment", f"{name} requires non-empty evidence")
 
 
+def _validate_mechanical_report(mechanical):
+    expected_keys = {
+        "schema_version", "state", "verdict", "mechanical_results",
+        "required_independent_findings", "hashes", "audited_at",
+    }
+    if not isinstance(mechanical, dict) or set(mechanical) != expected_keys:
+        raise AuditError(
+            "malformed_mechanical_audit",
+            "mechanical audit must contain only the version, state, verdict, "
+            "results, required findings, hashes, and timestamp",
+        )
+    if mechanical["schema_version"] != 1:
+        raise AuditError("malformed_mechanical_audit", "unsupported mechanical audit schema")
+    if mechanical["state"] != "incomplete" or mechanical["verdict"] != "PASS":
+        raise AuditError(
+            "mechanical_audit_failed",
+            "a passing, incomplete mechanical audit is required before judgment",
+        )
+    if not lfd_common.valid_mechanical_results(mechanical["mechanical_results"]):
+        raise AuditError(
+            "malformed_mechanical_audit",
+            "mechanical results must be non-empty supported PASS findings",
+        )
+    if mechanical["required_independent_findings"] != list(REQUIRED_FINDINGS):
+        raise AuditError(
+            "malformed_mechanical_audit",
+            "mechanical audit does not name the required independent findings",
+        )
+    if not isinstance(mechanical["audited_at"], str) or not mechanical["audited_at"].strip():
+        raise AuditError("malformed_mechanical_audit", "mechanical audit timestamp is required")
+
+
 def finalize_audit(target_dir, judgment):
     """Combine fresh mechanical evidence with explicit independent findings."""
     mechanical_path = os.path.join(target_dir, "audit-mechanical.json")
@@ -81,8 +113,7 @@ def finalize_audit(target_dir, judgment):
             mechanical = json.load(stream)
     except (OSError, json.JSONDecodeError) as exc:
         raise AuditError("missing_mechanical_audit", str(exc)) from exc
-    if mechanical.get("schema_version") != 1 or mechanical.get("verdict") != "PASS":
-        raise AuditError("mechanical_audit_failed", "a passing version-1 mechanical audit is required")
+    _validate_mechanical_report(mechanical)
     _validate_judgment(judgment)
     current_without_judgment = lfd_common.audit_artifact_hashes(target_dir)
     if mechanical.get("hashes") != current_without_judgment:

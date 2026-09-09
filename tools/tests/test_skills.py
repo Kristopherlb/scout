@@ -67,6 +67,18 @@ class TestSkillPack(unittest.TestCase):
         self.assertEqual(self.read(os.path.join(outside, "copilot-instructions.md")),
                          "caller owned\n")
 
+    def test_managed_shim_verification_rejects_symlinked_file(self):
+        checkout = os.path.join(self.tmp, "checkout")
+        os.makedirs(checkout)
+        lfd_shims.apply_all(checkout)
+        outside = os.path.join(self.tmp, "outside-agents.md")
+        self.write(outside, self.read(os.path.join(checkout, "AGENTS.md")))
+        os.remove(os.path.join(checkout, "AGENTS.md"))
+        os.symlink(outside, os.path.join(checkout, "AGENTS.md"))
+        with self.assertRaises(lfd_shims.ShimError) as raised:
+            lfd_shims.verify_all(checkout)
+        self.assertEqual(raised.exception.code, "shim_conflict")
+
     def test_bundle_contains_execute_skill_only(self):
         lfd_bundle.generate_bundle(self.target, os.path.join(HUB_ROOT, "templates"))
         bundle = os.path.join(self.target, "bundle")
@@ -91,7 +103,7 @@ class TestSkillPack(unittest.TestCase):
             checkout, ".cursor", "rules", "scout-lfd.mdc")))
         self.assertTrue(os.path.isfile(os.path.join(
             checkout, ".github", "copilot-instructions.md")))
-        lfd_bundle.verify_equipped(checkout)
+        lfd_bundle.verify_equipped(checkout, self.target)
 
     def test_shared_material_is_not_invocable(self):
         shared = os.path.join(HUB_ROOT, "skills", "lfd-shared")

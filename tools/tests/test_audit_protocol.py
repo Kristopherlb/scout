@@ -68,7 +68,9 @@ class TestAuditProtocol(unittest.TestCase):
         lfd_bundle.generate_bundle(self.target, os.path.join(HUB_ROOT, "templates"))
         self.mechanical = {
             "overall_mechanical_verdict": "PASS",
-            "mechanical_results": [{"item": "all", "verdict": "PASS"}],
+            "mechanical_results": [{
+                "item": "all", "verdict": "PASS", "detail": "all checks passed",
+            }],
             "still_requires_independent_llm_judgment": ["semantic review"],
         }
 
@@ -98,6 +100,22 @@ class TestAuditProtocol(unittest.TestCase):
         with self.assertRaises(lfd_audit.AuditError) as raised:
             lfd_audit.finalize_audit(self.target, judgment)
         self.assertEqual(raised.exception.code, "incomplete_judgment")
+
+    def test_finalize_rejects_tampered_mechanical_state(self):
+        report = lfd_audit.write_mechanical_report(self.target, self.mechanical)
+        report["state"] = "failed"
+        write(os.path.join(self.target, "audit-mechanical.json"), report)
+        with self.assertRaises(lfd_audit.AuditError) as raised:
+            lfd_audit.finalize_audit(self.target, passing_judgment())
+        self.assertEqual(raised.exception.code, "mechanical_audit_failed")
+
+    def test_finalize_rejects_malformed_mechanical_results(self):
+        report = lfd_audit.write_mechanical_report(self.target, self.mechanical)
+        report["mechanical_results"] = []
+        write(os.path.join(self.target, "audit-mechanical.json"), report)
+        with self.assertRaises(lfd_audit.AuditError) as raised:
+            lfd_audit.finalize_audit(self.target, passing_judgment())
+        self.assertEqual(raised.exception.code, "malformed_mechanical_audit")
 
     def test_finalize_stamps_six_fresh_hashes(self):
         lfd_audit.write_mechanical_report(self.target, self.mechanical)

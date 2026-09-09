@@ -103,9 +103,9 @@ failure.
 3. Per tag: require an annotated object; validate tag, payload, full SHA, and
    request ID; deduplicate request ID + SHA against `log.jsonl`; rate-limit off
    the last row's timestamp.
-4. Parse the tag message with `ops/log_utils.py parse-tag-msg` — every
+4. Parse the validated request with `ops/log_utils.py parse-request` — every
    agent-supplied field becomes a validated float/enum or null. Nothing from
-   the tag is ever interpolated into code.
+   the request is ever interpolated into code.
 5. Clone the **pinned SHA** (tags can't race).
 6. **Liveness gate**, sandboxed: configured build → boot (backgrounded) →
    health-check commands. Failure ⇒ row with `holdout_score: 0`,
@@ -114,7 +114,8 @@ failure.
 8. **Probe** per the contract cadence via `harness/probe-holdout.sh`.
 9. Append ONE row via `ops/log_utils.py append` (the only log writer).
 10. Divergence check over the same log; post commit status (score ± CI +
-    divergence flag + boolean probe verdict — nothing else); write a
+    divergence flag + boolean probe and coverage-variance verdicts — nothing
+    else); write a
     `$GITHUB_STEP_SUMMARY` table row with full hub-side detail.
 
 ## Two-stage scoring contract
