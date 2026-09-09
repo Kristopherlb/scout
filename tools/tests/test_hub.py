@@ -171,8 +171,7 @@ class TestStatusAndDashboard(unittest.TestCase):
 
 
 class TestDesignCalculators(unittest.TestCase):
-    DESIGN = os.path.join(HUB_ROOT, "skills", "lfd-design",
-                          "scripts", "design")
+    DESIGN = os.path.join(HUB_ROOT, "skills", "lfd-shared", "scripts")
 
     def test_power_calc_reproduces_worked_example(self):
         out = subprocess.run(

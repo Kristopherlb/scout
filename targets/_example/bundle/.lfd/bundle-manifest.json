@@ -1,5 +1,6 @@
 {
   "files": {
+    ".agents/skills/lfd-execute/SKILL.md": "f61a61d8deb549b4d597eb2219fee46d2e2e4882eeed30804a425ee2f9b3d0e4",
     ".github/workflows/holdout-request-tag.yml": "619fe118229e4ee20a552f39b87afc78accdcc1040644b2417196a0e76cc0f6c",
     ".lfd/eval/dev/case-d001.json": "35bc9f8b7aac2b33c050321a9c038bf251b60ab9e90b11caa65706b0ab12c72f",
     ".lfd/goal.md": "3842cfe31e46089d8daa5825c0315001bcf6eaaf2b30bdf924f1c0b8b73db773",
