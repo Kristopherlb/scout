@@ -17,7 +17,9 @@ mypy
 ```
 
 Keep changes focused and explain security-boundary changes explicitly. Add or
-update tests for behavior changes.
+update tests for behavior changes. Work lands in independently revertible
+slices; `main` must remain truthful, sterile, documented, and green after each
+merge. Skills wrap stable CLI commands rather than reimplementing runtime logic.
 
 ## Standards and architecture changes
 

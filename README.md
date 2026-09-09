@@ -31,7 +31,7 @@ The framework includes:
 - liveness, calibration, and audit activation gates;
 - canary, mutation, divergence, and coverage-variance checks;
 - terminal status, review, retrospective, and HTML dashboard tools;
-- a reusable LFD design skill under `skills/lfd-design/`;
+- narrow onboard, design, audit, execute, and patch skills with shared science;
 - a synthetic fixture that exercises healthy and adversarial signals.
 
 ## Quick start
@@ -80,15 +80,16 @@ private hub commits back upstream.
 | `tools/` | Registry, audit, status, dashboard, and policy tools |
 | `ops/` | Trusted polling, sandboxing, scoring, and status runtime |
 | `templates/target-repo/` | Files copied into a repository under evaluation |
-| `skills/lfd-design/` | Agent-neutral LFD design skill source |
+| `skills/lfd-*/` | Narrow workflow skills plus non-invocable shared science and calculators |
 | `targets/_example/` | Synthetic demonstration data only |
 | `rac/` | Canonical requirements and architecture decisions |
 | `standards/` | Requirement-to-control mappings and tool version pins |
 | `docs/` | Architecture, onboarding, and release guidance |
 
-Agent tools discover skills in different locations. Copy or link
-`skills/lfd-design/` into the skill directory used by your agent runtime; keep
-this directory as the canonical source.
+The verified target bundle contains only `lfd-execute`. Equip writes bounded,
+idempotent Codex, Claude, Cursor, and Copilot instruction blocks that point to
+that single target-side skill while preserving caller-owned instructions.
+Hub-side onboarding, design, audit, and patch skills never enter the target.
 
 ## Standards as code
 

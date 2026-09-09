@@ -7,6 +7,7 @@ import shutil
 
 import lfd_contract
 import lfd_holdout_protocol
+import lfd_shims
 
 
 BUNDLE_SCHEMA_VERSION = 1
@@ -178,6 +179,7 @@ def verify_equipped(checkout):
                               "equipped file is missing or differs from its manifest hash")
         if _private_source(relative):
             raise BundleError("private_material", relative, "manifest contains a forbidden path")
+    lfd_shims.verify_all(checkout)
     return manifest
 
 
@@ -189,6 +191,7 @@ def equip_bundle(target_dir, checkout):
     old_manifest = None
     if os.path.isfile(os.path.join(checkout, MANIFEST_PATH)):
         old_manifest = _load_manifest(checkout)
+    lfd_shims.preflight_all(checkout)
 
     for relative, new_hash in manifest["files"].items():
         destination = os.path.join(checkout, relative)
@@ -212,5 +215,6 @@ def equip_bundle(target_dir, checkout):
         _copy_file(os.path.join(bundle_root, relative), os.path.join(checkout, relative))
     _copy_file(os.path.join(bundle_root, MANIFEST_PATH),
                os.path.join(checkout, MANIFEST_PATH))
+    lfd_shims.apply_all(checkout)
     verify_equipped(checkout)
     return {"status": "ok", "files": len(manifest["files"])}

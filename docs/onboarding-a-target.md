@@ -19,9 +19,8 @@ a sanitized `target-profile.json` without local paths or source content.
 
 ## 2. Design the eval and harness
 
-Run the LFD design skill from the private hub. The canonical skill source is
-`skills/lfd-design/`; copy or link it into the discovery directory used by your
-agent runtime.
+Run `lfd-design` from the private hub. It owns design only; shared scientific
+references and calculators live under the non-invocable `skills/lfd-shared/`.
 
 The design process must:
 
@@ -48,7 +47,9 @@ bin/lfd onboard verify myrepo --checkout /path/to/myrepo
 ```
 
 The generated manifest is the allowlist and integrity record. Equip fails on
-conflicts instead of overwriting caller-owned content. Never bypass it to copy
+conflicts instead of overwriting caller-owned content. It installs only the
+target-side `lfd-execute` skill and updates bounded Codex, Claude, Cursor, and
+Copilot blocks idempotently; hub-side skills remain private. Never bypass it to copy
 the holdout suite, canary list, private scorer, or operational log.
 
 The target receives a developer scorer, a holdout request script, a status
@@ -142,7 +143,7 @@ provide `GH_TOKEN` or `GITHUB_TOKEN`. The reader queries only the exact
 |---|---|
 | Any time | Run `bin/lfd status` or open the dashboard |
 | Unscheduled review | Run `bin/lfd review myrepo` and inspect cases hub-side |
-| Divergence or weak probes | Run the LFD design skill in patch mode with an independent, stronger reviewer |
+| Divergence or weak probes | Invoke `lfd-patch` hub-side with a stronger design model, then require a fresh `lfd-audit` |
 | Run ends | Run `bin/lfd retro myrepo` and capture newly observed cheats |
 | Eval is exposed or reused | Rotate cases and regenerate per-run canaries |
 | Pausing a target | Set `lifecycle.status` to `paused` to retain history without polling |

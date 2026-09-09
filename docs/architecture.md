@@ -59,9 +59,25 @@ source, but private target commits must never flow back into public history.
 | `bundle/` | yes | generated agent-visible tree with `.lfd/bundle-manifest.json` hashes |
 
 The bundle generator has an exact source allowlist: `goal.md`, `eval/dev/`,
-`dev-harness/`, and the target-repository templates. It rejects private-shaped
+`dev-harness/`, the target-repository templates, and only `lfd-execute`. It rejects private-shaped
 paths before generation and verifies every installed managed file by SHA-256.
-Equip refuses to overwrite a caller-owned or locally modified file.
+Equip refuses to overwrite a caller-owned or locally modified file. Managed
+Codex, Claude, Cursor, and Copilot blocks preserve everything outside their
+markers.
+
+## Agent skill boundaries
+
+| Skill | Surface | Responsibility |
+|---|---|---|
+| `lfd-onboard` | private hub | register, inspect, equip, verify, and derive lifecycle state |
+| `lfd-design` | private hub | build the powered eval, loss, scorers, calibration, and bundle |
+| `lfd-audit` | fresh private context | mechanical pass plus five explicit independent findings |
+| `lfd-patch` | private hub | repair the loss after a detected exploit or stale evidence |
+| `lfd-execute` | target repository | run visible scoring and stable request/status commands only |
+
+Calculators and scientific references live in `skills/lfd-shared/`, which has
+no `SKILL.md` and cannot be invoked. Skills wrap existing CLI interfaces; they
+do not reimplement scoring, Git request transport, or status discovery.
 
 ### `target.json` fields
 
