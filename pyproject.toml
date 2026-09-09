@@ -1,6 +1,6 @@
 [project]
 name = "scout"
-version = "0.1.0"
+version = "1.0.0"
 description = "Blinded, anti-Goodhart evaluations for autonomous coding agents"
 readme = "README.md"
 requires-python = ">=3.9"

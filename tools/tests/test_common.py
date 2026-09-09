@@ -3,8 +3,8 @@
 These exercise the helpers in-process (the pipeline hits them via
 subprocess, which line coverage can't see) so the module the whole design
 leans on stays measurably covered."""
-import os
 import json
+import os
 import shutil
 import sys
 import tempfile

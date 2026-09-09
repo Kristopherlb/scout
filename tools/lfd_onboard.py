@@ -14,8 +14,11 @@ import lfd_common  # noqa: E402
 import lfd_contract  # noqa: E402
 import lfd_interface  # noqa: E402
 
-
 envelope = lfd_interface.envelope
+
+
+def _requires_action(stage):
+    return stage not in {"ready_for_activation", "active", "example_ready"}
 
 
 def _write_json(path, document):
@@ -26,7 +29,7 @@ def _write_json(path, document):
 
 
 def _write_unavailable(path, capability):
-    body = ("#!/usr/bin/env bash\nset -euo pipefail\n"
+    body = ("#!/usr/bin/env bash\n# LFD_CAPABILITY_UNAVAILABLE\nset -euo pipefail\n"
             f"echo '{{\"status\":\"error\",\"error\":{{\"code\":\"capability_unavailable\",\"message\":\"{capability} requires completed LFD design\"}}}}' >&2\n"
             "exit 2\n")
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -60,12 +63,19 @@ def start_target(hub_root, name, repository_url, template_root=None):
     return {"target_dir": target_dir}
 
 
+def _is_git_checkout(path):
+    return subprocess.run(
+        ["git", "-C", path, "rev-parse", "--is-inside-work-tree"],
+        capture_output=True, text=True,
+    ).returncode == 0
+
+
 def inspect_target(target_dir, checkout):
     target_dir = os.path.abspath(target_dir)
     checkout = os.path.abspath(checkout)
-    if not os.path.isdir(os.path.join(checkout, ".git")):
+    if not _is_git_checkout(checkout):
         raise ValueError("checkout must be a Git working tree")
-    extensions = {}
+    extensions: dict[str, int] = {}
     build_names = {"pyproject.toml", "package.json", "Cargo.toml", "go.mod",
                    "Gemfile", "Makefile", "justfile"}
     build_files = []
@@ -116,15 +126,16 @@ def _designed(target_dir):
         return False
     for relative in required_files[1:]:
         with open(os.path.join(target_dir, relative)) as stream:
-            if "capability_unavailable" in stream.read():
+            if "LFD_CAPABILITY_UNAVAILABLE" in stream.read():
                 return False
     return True
 
 
 def onboarding_status(target_dir, checkout=None):
     target_dir = os.path.abspath(target_dir)
-    lfd_contract.load_target(target_dir)
-    if not os.path.isfile(os.path.join(target_dir, "target-profile.json")):
+    contract = lfd_contract.load_target(target_dir)
+    is_example = contract["lifecycle"]["status"] == "example"
+    if not is_example and not os.path.isfile(os.path.join(target_dir, "target-profile.json")):
         return {"stage": "needs_inspection", "next_actions": ["onboard inspect"]}
     if not _designed(target_dir):
         return {"stage": "needs_design", "next_actions": ["run lfd-design"]}
@@ -147,11 +158,12 @@ def onboarding_status(target_dir, checkout=None):
     calibration, _ = lfd_common.calibration_state(target_dir)
     if calibration != "ok":
         return {"stage": "calibration_invalid", "next_actions": ["run calibration"]}
-    contract = lfd_contract.load_target(target_dir)
     if contract["lifecycle"]["status"] == "active":
         blockers = lfd_common.activation_blockers(contract, target_dir)
         return ({"stage": "active", "next_actions": []} if not blockers else
                 {"stage": "activation_invalid", "next_actions": ["activate"]})
+    if is_example:
+        return {"stage": "example_ready", "next_actions": ["walkthrough"]}
     return {"stage": "ready_for_activation", "next_actions": ["activate"]}
 
 
@@ -195,8 +207,8 @@ def doctor(hub_root, target=None, checkout=None, require_github=False):
             status = "fail"
         checks.append({"name": "target_contract", "status": status})
     if checkout:
-        checks.append({"name": "checkout", "status": "ok" if os.path.isdir(
-            os.path.join(os.path.abspath(checkout), ".git")) else "fail"})
+        checks.append({"name": "checkout", "status": "ok" if _is_git_checkout(
+            os.path.abspath(checkout)) else "fail"})
     return {"checks": checks, "status": "fail" if any(c["status"] == "fail" for c in checks) else "ok"}
 
 
@@ -263,7 +275,7 @@ def main():
                                        args.repo_url)
             else:
                 state = onboarding_status(target_dir, args.checkout)
-            pending = state["stage"] not in {"ready_for_activation"}
+            pending = _requires_action(state["stage"])
             document = envelope(f"onboard.{args.verb}", args.name,
                                 status="action_required" if pending else "ok",
                                 stage=state["stage"], next_actions=state["next_actions"])

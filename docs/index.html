@@ -330,7 +330,34 @@
 
   append_once(log, result, probe, harness_hash)
   flags = check_divergence(log) + check_probes(log)
-  post_status(result.score, result.interval, flags)</code></pre>
+          post_status(result.score, result.interval, flags)</code></pre>
+        </div>
+
+        <div class="runtime-algorithm" aria-label="Executable public walkthrough">
+          <div class="runtime-copy">
+            <p class="eyebrow">RUN THE PROOF</p>
+            <h3>The public example is executable.</h3>
+            <p>
+              One command runs the real typed contract, verifies the hashed agent bundle, scores
+              known-good and known-bad code, proves mechanical review cannot activate, finalizes
+              fixture judgment, and then activates successfully—all in a disposable copy.
+            </p>
+            <ul>
+              <li>No private data, credentials, or external target required.</li>
+              <li>The launching checkout is left unchanged.</li>
+              <li><code>--json</code> returns the stable versioned agent envelope.</li>
+            </ul>
+          </div>
+          <pre class="pseudo-code" aria-label="Scout walkthrough command and lifecycle stages"><code><span class="code-key">$</span> bin/lfd walkthrough
+
+contract_valid
+bundle_verified
+dev_scored
+calibration_verified
+mechanical_incomplete
+activation_refused
+audit_finalized
+activation_succeeded</code></pre>
         </div>
 
         <div class="mechanics-summary">
@@ -562,7 +589,8 @@
           </div>
           <p class="section-intro">
             No single check is perfect. Scout combines independent signals so that hiding from one
-            detector tends to make a different detector light up.
+            detector tends to make a different detector light up. Each target declares whether a
+            detector is advisory or blocking without changing the detector's mathematics.
           </p>
         </div>
 
@@ -716,6 +744,7 @@
         </p>
         <div class="hero-actions">
           <a class="button button-primary" href="https://github.com/Kristopherlb/scout">Explore Scout on GitHub ↗</a>
+          <a class="button button-secondary" href="./walkthrough.md">Run the walkthrough</a>
           <a class="button button-secondary" href="./architecture.md">Read the architecture notes</a>
         </div>
       </section>
@@ -724,6 +753,7 @@
     <footer>
       <p>SCOUT · BLINDED EVALUATION FOR AUTONOMOUS AGENTS · APACHE-2.0</p>
       <div class="footer-links">
+        <a href="./walkthrough.md">Walkthrough</a>
         <a href="./architecture.md">Architecture</a>
         <a href="./onboarding-a-target.md">Onboarding</a>
         <a href="https://github.com/Kristopherlb/scout">GitHub ↗</a>

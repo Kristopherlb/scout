@@ -22,6 +22,7 @@ evidence.
 - [REQ-006] Scoring-log writer changes MUST receive human review confirming that every row still routes through `ops/log_utils.py`.
 - [REQ-007] Target operational configuration MUST be a strictly validated, non-executable `target.json` contract loaded through `tools/lfd_contract.py`.
 - [REQ-008] Runtime commands MUST reject legacy `config.env` target configuration.
+- [REQ-009] Every detector's `advisory | blocking` contract policy MUST determine whether its bounded result informs or fails the target status.
 
 ## Success Metrics
 

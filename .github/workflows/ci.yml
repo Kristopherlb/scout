@@ -19,13 +19,18 @@ jobs:
           fetch-depth: 0
 
       - name: Compile all Python
-        run: python3 -m compileall -q tools ops skills/lfd-design/scripts/design
+        run: python3 -m compileall -q tools ops skills
 
       - name: Unit tests
         run: python3 -m unittest discover -s tools/tests -v
 
+      - name: Executable public walkthrough
+        run: bin/lfd walkthrough --json
+
       - name: Shellcheck
-        run: shellcheck ops/*.sh bin/lfd templates/target-repo/scripts/target-repo/*.sh
+        run: |
+          shellcheck bin/lfd
+          find ops templates skills targets/_example -type f -name '*.sh' -print0 | xargs -0 shellcheck
 
       - name: Policy gates (activation gate, zero-deps)
         run: python3 tools/ci_checks.py all
@@ -51,7 +56,7 @@ jobs:
       - name: Install dev tools (CI-only; not runtime deps)
         run: pip install ruff==0.15.20 mypy==1.19.1 coverage==7.10.7
       - name: Ruff
-        run: ruff check tools ops
+        run: ruff check tools ops skills/lfd-shared/scripts
       - name: Mypy
         run: mypy
       - name: Coverage (blocking floor on the trust-boundary module)

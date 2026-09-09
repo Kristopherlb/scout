@@ -36,11 +36,12 @@ The framework includes:
 
 ## Quick start
 
-Requirements: Python 3.9 or newer, Git, Bash, and `jq`. Docker is strongly
+Requirements: Python 3.9 or newer, Git, and Bash. Docker is strongly
 recommended for scoring untrusted target code. Development checks also use
 ShellCheck, Ruff, Mypy, and Coverage.
 
 ```bash
+bin/lfd walkthrough
 bin/lfd status
 bin/lfd dashboard
 bin/lfd doctor
@@ -50,8 +51,12 @@ python3 tools/ci_checks.py public-release
 python3 tools/check_standards.py all
 ```
 
-`bin/lfd status` and `bin/lfd dashboard` work immediately against the
-synthetic `targets/_example` data.
+`bin/lfd walkthrough` executes the synthetic contract → bundle → scoring →
+audit → activation lifecycle in a disposable copy, including the expected
+activation refusal before independent judgment. See the
+[walkthrough guide](docs/walkthrough.md) for its evidence and limits.
+`bin/lfd status` and `bin/lfd dashboard` also work immediately against the
+synthetic `targets/_example` history.
 
 ## Create a private operational hub
 
@@ -84,12 +89,17 @@ private hub commits back upstream.
 | `targets/_example/` | Synthetic demonstration data only |
 | `rac/` | Canonical requirements and architecture decisions |
 | `standards/` | Requirement-to-control mappings and tool version pins |
-| `docs/` | Architecture, onboarding, and release guidance |
+| `docs/` | Executable walkthrough, architecture, onboarding, and release guidance |
 
 The verified target bundle contains only `lfd-execute`. Equip writes bounded,
 idempotent Codex, Claude, Cursor, and Copilot instruction blocks that point to
 that single target-side skill while preserving caller-owned instructions.
 Hub-side onboarding, design, audit, and patch skills never enter the target.
+
+Agent-facing commands return a versioned JSON envelope with command, target,
+status, stage, artifacts, stable errors, and next actions. Exit `0` means
+success, `2` invalid input or contract, `3` pending judgment/external result,
+and `4` infrastructure or transport failure.
 
 ## Standards as code
 

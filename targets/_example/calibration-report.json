@@ -1,5 +1,7 @@
 {
-  "note": "Synthetic Phase-6 calibration: known-good vs known-bad outputs scored by the harness. Intervals must not overlap.",
-  "good_score": 0.94, "good_ci": [0.90, 0.98],
-  "bad_score": 0.18, "bad_ci": [0.11, 0.25]
+  "note": "Executable synthetic calibration produced by score-holdout.sh for the committed good and bad fixtures.",
+  "good_score": 1.0,
+  "good_ci": [1.0, 1.0],
+  "bad_score": 0.0,
+  "bad_ci": [0.0, 0.0]
 }

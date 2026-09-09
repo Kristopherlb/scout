@@ -13,9 +13,10 @@ Exit code 1 on VOID (for use in lint.sh's own exit-code chaining).
 """
 import argparse
 import json
-import sys
 import os
 import re
+import sys
+
 
 def ngrams(text, n):
     tokens = re.findall(r"\w+", text.lower())
@@ -41,9 +42,13 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--solution-dir", required=True)
     p.add_argument("--eval-answers-dir", required=True)
-    p.add_argument("--n", type=int, default=8)
-    p.add_argument("--threshold", type=float, default=0.4)
+    p.add_argument("--n", type=int, required=True)
+    p.add_argument("--threshold", type=float, required=True)
     args = p.parse_args()
+    if args.n < 1:
+        p.error("--n must be at least 1")
+    if not 0 <= args.threshold <= 1:
+        p.error("--threshold must be between 0 and 1")
 
     eval_ngrams = set()
     for _, text in read_text_files(args.eval_answers_dir):

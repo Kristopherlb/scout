@@ -64,12 +64,24 @@ def main():
         document = lfd_interface.envelope("activate", args.target, status="success",
                                         stage="active", artifacts=["target.json", "activation.json"])
         code = 0
-    except (ActivationError, lfd_contract.ContractError, lfd_bundle.BundleError,
-            OSError) as exc:
+    except ActivationError as exc:
+        pending = exc.code == "activation_blocked"
+        document = lfd_interface.envelope("activate", args.target,
+                                        status="pending" if pending else "error",
+                                        stage="activation_blocked" if pending else None,
+                                        errors=[{"code": exc.code, "message": str(exc)}],
+                                        next_actions=["resolve activation blockers"] if pending else [])
+        code = 3 if pending else 2
+    except (lfd_contract.ContractError, lfd_bundle.BundleError) as exc:
         document = lfd_interface.envelope("activate", args.target, status="error",
                                         errors=[{"code": getattr(exc, "code", "invalid_input"),
                                                  "message": str(exc)}])
         code = 2
+    except OSError as exc:
+        document = lfd_interface.envelope("activate", args.target, status="error",
+                                        errors=[{"code": "infrastructure_failure",
+                                                 "message": str(exc)}])
+        code = 4
     if args.json:
         print(json.dumps(document, sort_keys=True))
     else:

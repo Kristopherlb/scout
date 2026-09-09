@@ -15,9 +15,9 @@ import unittest
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 HUB_ROOT = os.path.abspath(os.path.join(TESTS_DIR, "..", ".."))
 sys.path.insert(0, os.path.join(HUB_ROOT, "tools"))
+import lfd_audit  # noqa: E402
 import lfd_common  # noqa: E402
 import lfd_contract  # noqa: E402
-import lfd_audit  # noqa: E402
 
 
 def write(path, content):

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "independent_context_attestation": true,
+  "findings": {
+    "leakage_estimate": {
+      "verdict": "PASS",
+      "evidence": "The synthetic result exposes only an aggregate score and interval; no case identity is returned."
+    },
+    "goodhart_fence_matching": {
+      "verdict": "PASS",
+      "evidence": "The fixture pairs contamination with blinding and exact/fuzzy scans, and lookup growth with capacity and compressibility bounds."
+    },
+    "calibration_quality": {
+      "verdict": "PASS",
+      "evidence": "The executable good fixture scores 1.0 [1.0,1.0] and the bad fixture scores 0.0 [0.0,0.0]."
+    },
+    "escalation_wiring": {
+      "verdict": "PASS",
+      "evidence": "The goal halts for hub-side patching on divergence, detector failure, or bundle drift."
+    },
+    "blinding_verification": {
+      "verdict": "PASS",
+      "evidence": "Bundle verification confirms holdout cases, private scorers, canaries, and audit evidence are absent from the target-visible manifest."
+    }
+  }
+}

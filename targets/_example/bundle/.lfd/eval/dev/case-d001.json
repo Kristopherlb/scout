@@ -1,4 +1,5 @@
 {
-  "input": {"question": "Example dev case — visible to the agent."},
-  "answer": "Example dev answer."
+  "id": "dev-1",
+  "input": {"value": 2},
+  "answer": 4
 }

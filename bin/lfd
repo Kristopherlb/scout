@@ -11,7 +11,6 @@ case "$CMD" in
   dashboard)   exec python3 "$HUB_ROOT/tools/lfd_dashboard.py" --hub-root "$HUB_ROOT" "$@" ;;
   doctor)      exec python3 "$HUB_ROOT/tools/lfd_doctor.py" --hub-root "$HUB_ROOT" "$@" ;;
   onboard)     exec python3 "$HUB_ROOT/tools/lfd_onboard.py" --hub-root "$HUB_ROOT" "$@" ;;
-  new-target)  exec python3 "$HUB_ROOT/tools/lfd_onboard.py" --hub-root "$HUB_ROOT" start "$@" ;;
   review)      exec python3 "$HUB_ROOT/tools/lfd_review.py" "$@" --hub-root "$HUB_ROOT" ;;
   retro)       exec python3 "$HUB_ROOT/tools/lfd_retro.py" "$@" --hub-root "$HUB_ROOT" ;;
   poll)        exec bash "$HUB_ROOT/ops/poll-and-score.sh" "$HUB_ROOT/targets/${1:?usage: lfd poll <target>}" ;;
@@ -21,6 +20,7 @@ case "$CMD" in
     done ;;
   audit)       exec python3 "$HUB_ROOT/tools/lfd_audit.py" --hub-root "$HUB_ROOT" "$@" ;;
   activate)    exec python3 "$HUB_ROOT/tools/lfd_activate.py" --hub-root "$HUB_ROOT" "$@" ;;
+  walkthrough) exec python3 "$HUB_ROOT/tools/lfd_walkthrough.py" --hub-root "$HUB_ROOT" "$@" ;;
   canaries)    exec bash "$HUB_ROOT/ops/generate-canaries.sh" "$HUB_ROOT/targets/${1:?usage: lfd canaries <target>}" ;;
   test)        exec python3 -m unittest discover -s "$HUB_ROOT/tools/tests" -v ;;
   help)
@@ -32,12 +32,12 @@ lfd — LFD eval hub
   lfd dashboard                     regenerate dashboard/index.html (self-contained)
   lfd doctor [--target NAME]         validate local tools, contract, and sandbox
   lfd onboard <verb> ...             start, inspect, equip, verify, status, or run
-  lfd new-target <name> <repo-url>  compatibility alias for `onboard start`
   lfd poll <target> | poll-all      run the scoring poll locally
   lfd audit mechanical <target>     write checkable audit evidence (still incomplete)
   lfd audit finalize <target>       combine mechanical evidence with judgment
        --judgment-file PATH
   lfd activate <target>             transition to active after all gates pass
+  lfd walkthrough [--json]          execute the public _example lifecycle proof
   lfd canaries <target>             embed fresh canaries in a target's holdout
   lfd review <target> [--k N]       human spot-check: random holdout cases,
                                     expected vs candidate output (hub-side only)

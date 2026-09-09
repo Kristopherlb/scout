@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-import copy
 import json
 import os
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -79,6 +79,17 @@ class TestAuditProtocol(unittest.TestCase):
         report = lfd_audit.write_mechanical_report(self.target, self.mechanical)
         self.assertEqual(report["state"], "incomplete")
         self.assertEqual(lfd_common.audit_state(self.target)[0], "incomplete")
+
+    def test_activation_blocked_by_judgment_exits_pending(self):
+        lfd_audit.write_mechanical_report(self.target, self.mechanical)
+        result = subprocess.run([
+            sys.executable, os.path.join(HUB_ROOT, "tools", "lfd_activate.py"),
+            "demo", "--hub-root", self.tmp, "--json",
+        ], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 3, result.stderr)
+        document = json.loads(result.stdout)
+        self.assertEqual(document["status"], "pending")
+        self.assertEqual(document["errors"][0]["code"], "activation_blocked")
 
     def test_finalize_requires_every_finding(self):
         lfd_audit.write_mechanical_report(self.target, self.mechanical)

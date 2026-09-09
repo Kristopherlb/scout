@@ -22,9 +22,13 @@ def main():
                     help="acceptance bar, e.g. 0.80")
     p.add_argument("--delta", type=float, required=True,
                     help="smallest score difference to distinguish, e.g. 0.05")
-    p.add_argument("--confidence", type=float, default=0.95,
+    p.add_argument("--confidence", type=float, required=True,
                     choices=[0.90, 0.95, 0.99])
     args = p.parse_args()
+    if not 0 < args.bar < 1:
+        p.error("--bar must be strictly between 0 and 1")
+    if not 0 < args.delta < 1:
+        p.error("--delta must be strictly between 0 and 1")
 
     z = Z[args.confidence]
     p_hat = args.bar

@@ -21,7 +21,7 @@ name: holdout-request-tag-reusable
 # caller under workflow_call), so it reads the caller's
 # .github/holdout-requests.jsonl. Requires the hub repo to be readable by the
 # caller's Actions (public, or same org/allowed). Prefer the self-contained
-# copy-paste form (templates/target-repo/.github/workflows/holdout-request-tag.yml)
+# bundled self-contained form (templates/target-repo/.github/workflows/holdout-request-tag.yml)
 # when zero coupling matters more than single-point maintenance.
 #
 # The target bundle supplies the validated materializer invoked below.

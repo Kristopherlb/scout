@@ -72,26 +72,30 @@ if ! MSG=$(python3 - "$PROTOCOL_VERSION" "$REQUEST_ID" "$REQUESTED_SHA" \
     "$TOKENS_IN" "$TOKENS_OUT" "$COST_USD" "$WALL_CLOCK" <<'PY'
 import json, math, re, sys
 
-def required_number(value, name):
+def required_number(value, name, *, minimum=None, maximum=None):
     try:
         number = float(value)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{name} must be numeric") from exc
     if not math.isfinite(number):
         raise ValueError(f"{name} must be finite")
+    if minimum is not None and number < minimum:
+        raise ValueError(f"{name} must be at least {minimum}")
+    if maximum is not None and number > maximum:
+        raise ValueError(f"{name} must be at most {maximum}")
     return number
 
 def optional_number(value, name):
-    return None if value == "" else required_number(value, name)
+    return None if value == "" else required_number(value, name, minimum=0)
 
 try:
     payload = {
         "schema_version": int(sys.argv[1]),
         "request_id": sys.argv[2],
         "requested_sha": sys.argv[3],
-        "dev_score": required_number(sys.argv[4], "dev_score"),
-        "dev_ci": [required_number(sys.argv[5], "dev_ci_low"),
-                   required_number(sys.argv[6], "dev_ci_high")],
+        "dev_score": required_number(sys.argv[4], "dev_score", minimum=0, maximum=1),
+        "dev_ci": [required_number(sys.argv[5], "dev_ci_low", minimum=0, maximum=1),
+                   required_number(sys.argv[6], "dev_ci_high", minimum=0, maximum=1)],
     }
     if sys.argv[7]:
         if not re.fullmatch(r"[A-Za-z0-9._:/-]{1,128}", sys.argv[7]):
@@ -102,6 +106,8 @@ try:
         parsed = optional_number(value, name)
         if parsed is not None:
             payload[name] = parsed
+    if not payload["dev_ci"][0] <= payload["dev_score"] <= payload["dev_ci"][1]:
+        raise ValueError("dev_ci must be ordered and contain dev_score")
     print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
 except ValueError as exc:
     print(str(exc), file=sys.stderr)
