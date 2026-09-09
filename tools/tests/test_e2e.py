@@ -164,9 +164,15 @@ exec "$@"
             }, f)
 
     def push_tag(self, n, dev_score=0.5):
-        msg = json.dumps({"dev_score": dev_score, "dev_ci": [dev_score - 0.05,
-                                                             dev_score + 0.05]})
-        git(self.repo, "tag", "-a", f"holdout-check-{n}", "-m", msg)
+        sha = subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD"],
+                             capture_output=True, text=True, check=True).stdout.strip()
+        request_id = f"{n:032x}"
+        msg = json.dumps({"schema_version": 1, "request_id": request_id,
+                          "requested_sha": sha, "dev_score": dev_score,
+                          "dev_ci": [dev_score - 0.05, dev_score + 0.05]})
+        tag = f"holdout-check-v1-{sha[:12]}-{request_id}"
+        git(self.repo, "tag", "-a", tag, "-m", msg)
+        return tag
 
     def run_poll(self, summary=None, extra_env=None):
         env = dict(os.environ)
@@ -186,7 +192,7 @@ exec "$@"
         self.write_config()
         self.write_scorer('#!/usr/bin/env bash\n'
                           'echo \'{"score": 0.70, "ci_low": 0.65, "ci_high": 0.75}\'\n')
-        self.push_tag(1)
+        tag = self.push_tag(1)
         summary = os.path.join(self.tmp, "summary.md")
         res = self.run_poll(summary=summary)
         self.assertEqual(res.returncode, 0, res.stderr)
@@ -194,14 +200,15 @@ exec "$@"
         rows = lfd_common.read_log(self.log)
         self.assertEqual(len(rows), 1)
         row = rows[0]
-        self.assertEqual(row["tag"], "holdout-check-1")
+        self.assertEqual(row["tag"], tag)
+        self.assertEqual(row["request_id"], f"{1:032x}")
         self.assertEqual(row["holdout_score"], 0.70)
         self.assertEqual(row["liveness"], "ok")
         self.assertEqual(row["dev_score"], 0.5)           # from validated tag msg
         self.assertIn("harness_version", row)
         # provenance: sha is the real tagged commit
         expected_sha = subprocess.run(
-            ["git", "-C", self.repo, "rev-list", "-n", "1", "holdout-check-1"],
+            ["git", "-C", self.repo, "rev-list", "-n", "1", tag],
             capture_output=True, text=True).stdout.strip()
         self.assertEqual(row["sha"], expected_sha)
         # job summary rendered
@@ -227,7 +234,7 @@ exec "$@"
         rows = lfd_common.read_log(self.log)
         # first scored; second inside the 2h window → deferred
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["tag"], "holdout-check-1")
+        self.assertEqual(rows[0]["request_id"], f"{1:032x}")
 
     def test_liveness_failure_scores_zero(self):
         self.write_config(HEALTH_CHECK="exit 1")
@@ -294,9 +301,15 @@ exec "$@"
         self.write_scorer('#!/usr/bin/env bash\n'
                           'echo \'{"score": 0.5, "ci_low": 0.4, "ci_high": 0.6}\'\n')
         # hostile dev_score in the tag the "agent" controls
-        msg = json.dumps({"dev_score": "__import__('os').system('touch /tmp/lfd_pwn')",
+        sha = subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD"],
+                             capture_output=True, text=True, check=True).stdout.strip()
+        request_id = f"{1:032x}"
+        msg = json.dumps({"schema_version": 1, "request_id": request_id,
+                          "requested_sha": sha,
+                          "dev_score": "__import__('os').system('touch /tmp/lfd_pwn')",
                           "dev_ci": [0, 1], "model_id": "x; rm -rf ~"})
-        git(self.repo, "tag", "-a", "holdout-check-1", "-m", msg)
+        git(self.repo, "tag", "-a",
+            f"holdout-check-v1-{sha[:12]}-{request_id}", "-m", msg)
         self.run_poll()
         row = lfd_common.read_log(self.log)[0]
         self.assertIsNone(row["dev_score"])     # rejected, stored as null

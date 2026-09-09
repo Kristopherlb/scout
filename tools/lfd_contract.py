@@ -120,7 +120,11 @@ def validate(contract, *, expected_name=None):
     _choice(lifecycle["status"], "lifecycle.status", VALID_STATUSES)
 
     holdout = contract["holdout"]
-    _object(holdout, "holdout", ("tag_prefix", "min_hours_between", "max_runs"))
+    _object(holdout, "holdout", ("protocol_version", "tag_prefix",
+                                  "min_hours_between", "max_runs"))
+    if holdout["protocol_version"] != 1:
+        _error("unsupported_version", "holdout.protocol_version",
+               "only the implemented protocol version 1 is supported")
     prefix = _string(holdout["tag_prefix"], "holdout.tag_prefix", single_line=True)
     if not TAG_PREFIX_RE.fullmatch(prefix) or ".." in prefix:
         _error("invalid_value", "holdout.tag_prefix", "must be a safe Git tag prefix ending in '-'")
@@ -229,6 +233,7 @@ def shell_values(contract):
     """Return the fixed adapter vocabulary consumed by hub shell scripts."""
     paths = {
         "TARGET_REPO_URL": "identity.repository_url",
+        "HOLDOUT_PROTOCOL_VERSION": "holdout.protocol_version",
         "HOLDOUT_TAG_PREFIX": "holdout.tag_prefix",
         "STATUS": "lifecycle.status",
         "MIN_HOURS_BETWEEN_HOLDOUT": "holdout.min_hours_between",

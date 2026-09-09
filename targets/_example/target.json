@@ -8,6 +8,7 @@
     "status": "example"
   },
   "holdout": {
+    "protocol_version": 1,
     "tag_prefix": "holdout-check-",
     "min_hours_between": 2,
     "max_runs": 100

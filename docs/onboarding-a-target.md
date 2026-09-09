@@ -52,14 +52,17 @@ conflicts instead of overwriting caller-owned content. Never bypass it to copy
 the holdout suite, canary list, private scorer, or operational log.
 
 The target receives a developer scorer, a holdout request script, a status
-reader, and an optional GitHub Actions transport. The request script first
-pushes an annotated `holdout-check-N` tag directly. If its environment cannot
-push tag refs, it appends the same request to
-`.github/holdout-requests.jsonl`; the target workflow creates the tag with the
-repository's `GITHUB_TOKEN`.
+reader, and a GitHub Actions fallback transport. Each request uses a random ID
+and an immutable `<prefix>v1-<sha12>-<request-id>` annotated tag whose payload
+contains the full requested SHA. The script pushes that tag directly when it
+can. If tag refs are unavailable, it creates a one-commit
+`lfd-request/<request-id>` branch in an isolated worktree. The caller's branch,
+index, staged changes, and untracked files are untouched.
 
-The copied workflow triggers only when the request queue changes. It is not
-tied to a particular branch name or agent provider.
+The fallback workflow validates that the request log is the only changed file,
+the request commit's sole parent is the requested SHA, and the branch, tag, and
+payload identities agree. It creates the tag and removes the ephemeral remote
+branch. The hub repeats identity validation before scoring.
 
 For centralized maintenance, a target may call the reusable workflow hosted in
 your framework or private hub repository:
@@ -68,6 +71,7 @@ your framework or private hub repository:
 name: holdout-request-tag
 on:
   push:
+    branches: ["lfd-request/**"]
     paths: [".github/holdout-requests.jsonl"]
 permissions:
   contents: write
@@ -128,8 +132,9 @@ bin/lfd status
 
 Confirm that exactly one log row was appended, the target commit received a
 bounded status, and no holdout content appeared in target-visible output.
-For local status checks, set `GITHUB_API_URL` to the API root for your GitHub
-host; GitHub Actions supplies this variable automatically.
+For status checks, set `GITHUB_API_URL` to the API root for your GitHub host and
+provide `GH_TOKEN` or `GITHUB_TOKEN`. The reader queries only the exact
+`lfd/holdout` context; unrelated aggregate CI failures do not change the result.
 
 ## Ongoing operations
 

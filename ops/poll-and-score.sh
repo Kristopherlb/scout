@@ -5,8 +5,8 @@
 #
 # Usage: poll-and-score.sh <target-dir>          (e.g. targets/myrepo)
 #
-# Per new holdout-check tag on the target repo:
-#   1. skip if already scored (tag dedup off log.jsonl — the one source of truth)
+# Per valid versioned holdout tag on the target repo:
+#   1. validate tag, payload, and commit identity; deduplicate request ID + SHA
 #   2. rate-limit off the last row's timestamp (MIN_HOURS_BETWEEN_HOLDOUT)
 #   3. pull the exact tagged SHA into an isolated checkout
 #   4. liveness gate (BUILD_CMD/BOOT_CMD/HEALTH_CHECK) inside the sandbox —
@@ -69,12 +69,30 @@ POLL_START=$SECONDS
 git clone --quiet --bare "$TARGET_REPO_URL" "$WORKDIR/target.git"
 
 # Oldest first: preserve cycle ordering in the log.
-NEW_TAGS=$(git -C "$WORKDIR/target.git" tag -l "${HOLDOUT_TAG_PREFIX}*" --sort=creatordate)
+NEW_TAGS=$(git -C "$WORKDIR/target.git" tag -l \
+  "${HOLDOUT_TAG_PREFIX}v${HOLDOUT_PROTOCOL_VERSION}-*" --sort=creatordate)
 HUB_COMMIT=$(git -C "$HUB_ROOT" rev-parse --short HEAD)
 
 for TAG in $NEW_TAGS; do
-  if [ "$(python3 "$LOG_UTILS" has-tag --log "$LOG" --tag "$TAG")" = "true" ]; then
-    continue  # idempotent — already scored this tag
+  if [ "$(git -C "$WORKDIR/target.git" cat-file -t "refs/tags/${TAG}")" != "tag" ]; then
+    echo "[$TARGET_NAME] ERROR: ${TAG} is not an annotated request tag" >&2
+    exit 2
+  fi
+
+  SHA=$(git -C "$WORKDIR/target.git" rev-parse "${TAG}^{commit}")
+  RAW_REQUEST=$(git -C "$WORKDIR/target.git" for-each-ref \
+    --format='%(contents)' "refs/tags/${TAG}")
+  if ! AGENT_FIELDS=$(printf '%s' "$RAW_REQUEST" | python3 "$LOG_UTILS" parse-request \
+      --tag "$TAG" --prefix "$HOLDOUT_TAG_PREFIX" \
+      --protocol-version "$HOLDOUT_PROTOCOL_VERSION" --actual-sha "$SHA"); then
+    echo "[$TARGET_NAME] ERROR: rejected invalid holdout request ${TAG}" >&2
+    exit 2
+  fi
+  REQUEST_ID=$(printf '%s' "$AGENT_FIELDS" | python3 -c \
+    'import json,sys; print(json.load(sys.stdin)["request_id"])')
+  if [ "$(python3 "$LOG_UTILS" has-request --log "$LOG" \
+      --request-id "$REQUEST_ID" --sha "$SHA")" = "true" ]; then
+    continue
   fi
 
   # --- rate limit: hours since last scored row, off log.jsonl only ---
@@ -84,11 +102,6 @@ for TAG in $NEW_TAGS; do
     echo "[$TARGET_NAME] rate limit: ${TAG} too soon (last check ${HOURS_SINCE}h ago < ${MIN_HOURS_BETWEEN_HOLDOUT}h) — will retry next poll"
     break  # tags are ordered oldest→newest; later ones are even newer
   fi
-
-  # --- agent-supplied tag message: validated as DATA, never interpolated ---
-  SHA=$(git -C "$WORKDIR/target.git" rev-list -n 1 "$TAG")
-  AGENT_FIELDS=$(git -C "$WORKDIR/target.git" tag -l --format='%(contents)' "$TAG" \
-    | python3 "$LOG_UTILS" parse-tag-msg)
 
   # --- pull exact tagged SHA (no "latest HEAD" race — tag is pinned) ---
   CHECKOUT="$WORKDIR/checkout-${SHA}"
@@ -171,7 +184,7 @@ print('' if v is None else v)")
   # --- one validated row, one file, source of truth for everything ---
   CYCLE=$(python3 "$LOG_UTILS" append \
     --log "$LOG" --target-dir "$TARGET_DIR" \
-    --tag "$TAG" --sha "$SHA" \
+    --tag "$TAG" --request-id "$REQUEST_ID" --sha "$SHA" \
     --holdout-score "$HOLDOUT_SCORE" --ci-low "$CI_LOW" --ci-high "$CI_HIGH" \
     --liveness "$LIVENESS" --hub-commit "$HUB_COMMIT" \
     --scoring-seconds "$SCORING_SECONDS" \
