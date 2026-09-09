@@ -28,8 +28,9 @@ The LFD design's core property: holdout scoring runs where the agent has no
 route and no credential. The public project supplies the framework and
 synthetic fixtures. Operators copy a release into a separate private hub that
 manages real targets through the `targets/` registry. Agents work in their own
-repositories and interact with the private hub through annotated
-`holdout-check-N` tags (requests) and commit statuses (responses).
+repositories and interact with the private hub through immutable annotated
+`<prefix>v1-<sha12>-<request-id>` tags (requests) and the exact
+`lfd/holdout` commit-status context (responses).
 
 The public project and each private operational hub are separate security
 domains. A private hub may consume reviewed framework changes from public
@@ -70,13 +71,15 @@ carry an explicit `advisory | blocking` enforcement policy. Unknown or missing
 fields, unsafe repository locations, mutable sandbox images, and legacy
 `config.env` files are rejected. `tools/lfd_contract.py` is the only loader;
 shell adapters receive a fixed NUL-delimited vocabulary and never source or
-evaluate configuration.
+evaluate configuration. `holdout.protocol_version` is required and must name an
+implemented protocol.
 
 ## The poll flow (`ops/poll-and-score.sh <target-dir>`)
 
 1. Skip unless `lifecycle.status` is `active`; skip past the run budget.
-2. Bare-clone the target; list `holdout-check-*` tags oldest→newest.
-3. Per tag: dedup against `log.jsonl` (JSON parse, not grep); rate-limit off
+2. Bare-clone the target; list tags for the configured protocol version oldest→newest.
+3. Per tag: require an annotated object; validate tag, payload, full SHA, and
+   request ID; deduplicate request ID + SHA against `log.jsonl`; rate-limit off
    the last row's timestamp.
 4. Parse the tag message with `ops/log_utils.py parse-tag-msg` — every
    agent-supplied field becomes a validated float/enum or null. Nothing from
@@ -140,7 +143,8 @@ Written exclusively by `ops/log_utils.py append`; append-only (CI-enforced).
 ```jsonc
 {
   "cycle": 7,                       // row index, 1-based
-  "tag": "holdout-check-7",
+  "tag": "holdout-check-v1-a1b2c3d4e5f6-0123456789abcdef0123456789abcdef",
+  "request_id": "0123456789abcdef0123456789abcdef",
   "sha": "…",                       // pinned target SHA that was scored
   "timestamp": "2026-07-07T12:00:00Z",
   "holdout_score": 0.61, "holdout_ci": [0.57, 0.65],

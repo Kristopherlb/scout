@@ -177,6 +177,41 @@
       "evidence": "python3 -m unittest tools.tests.test_gates.TestActivationGateIntegration"
     },
     {
+      "control_id": "SCOUT-PROTO-001",
+      "requirement": "rac/requirements/scout-holdout-request-protocol.md#REQ-001",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_holdout_protocol.TestHoldoutProtocol.test_contract_requires_implemented_protocol_version"
+    },
+    {
+      "control_id": "SCOUT-PROTO-002",
+      "requirement": "rac/requirements/scout-holdout-request-protocol.md#REQ-002",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_holdout_protocol.TestHoldoutProtocol.test_validator_binds_tag_payload_and_target_sha"
+    },
+    {
+      "control_id": "SCOUT-PROTO-003",
+      "requirement": "rac/requirements/scout-holdout-request-protocol.md#REQ-003",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_holdout_protocol.TestHoldoutProtocol.test_fallback_preserves_caller_and_materializes_transactionally"
+    },
+    {
+      "control_id": "SCOUT-PROTO-004",
+      "requirement": "rac/requirements/scout-holdout-request-protocol.md#REQ-004",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_e2e.TestPipelineE2E.test_dedup_second_poll_adds_no_row"
+    },
+    {
+      "control_id": "SCOUT-PROTO-005",
+      "requirement": "rac/requirements/scout-holdout-request-protocol.md#REQ-005",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_holdout_protocol.TestHoldoutProtocol.test_status_ignores_unrelated_aggregate_failure"
+    },
+    {
       "control_id": "SCOUT-CI-002",
       "requirement": "rac/requirements/scout-ci-and-evidence.md#REQ-002",
       "enforcement": "ci",

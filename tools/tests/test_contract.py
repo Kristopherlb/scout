@@ -23,6 +23,7 @@ def valid_contract(name="demo", status="onboarding"):
         },
         "lifecycle": {"status": status},
         "holdout": {
+            "protocol_version": 1,
             "tag_prefix": "holdout-check-",
             "min_hours_between": 2,
             "max_runs": 100,
@@ -132,6 +133,7 @@ class TestTargetContract(unittest.TestCase):
         self.assertEqual(values["TARGET_REPO_URL"],
                          "https://github.com/example/demo.git")
         self.assertEqual(values["STATUS"], "onboarding")
+        self.assertEqual(values["HOLDOUT_PROTOCOL_VERSION"], "1")
 
     def test_get_adapter_returns_one_validated_value(self):
         self.write()

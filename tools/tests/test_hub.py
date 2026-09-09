@@ -104,6 +104,7 @@ class TestLogAppend(unittest.TestCase):
     def append(self, **kw):
         args = [sys.executable, LOG_UTILS, "append", "--log", self.log,
                 "--target-dir", self.dir, "--tag", kw.pop("tag", "holdout-check-1"),
+                "--request-id", kw.pop("request_id", "0" * 32),
                 "--sha", "abc123", "--holdout-score", kw.pop("score", "0.5"),
                 "--ci-low", "0.45", "--ci-high", "0.55"]
         for k, v in kw.items():
@@ -120,6 +121,11 @@ class TestLogAppend(unittest.TestCase):
                               self.log, "--tag", "holdout-check-1"],
                              capture_output=True, text=True)
         self.assertEqual(out.stdout.strip(), "true")
+        by_request = subprocess.run(
+            [sys.executable, LOG_UTILS, "has-request", "--log", self.log,
+             "--request-id", "0" * 32, "--sha", "abc123"],
+            capture_output=True, text=True, check=True)
+        self.assertEqual(by_request.stdout.strip(), "true")
 
     def test_rejects_non_numeric_score(self):
         res = self.append(score="__import__('os')")

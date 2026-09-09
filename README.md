@@ -19,8 +19,8 @@ framework + synthetic fixture → real holdouts + scoring runtime ← requests b
                                  results by commit status          agent works here
 ```
 
-The target asks for a holdout check with an annotated
-`holdout-check-N` tag. The private hub checks out the pinned commit, runs
+The target asks for a holdout check with an immutable annotated
+`holdout-check-v1-<sha12>-<request-id>` tag. The private hub checks out the pinned commit, runs
 untrusted target code without network access or holdout visibility, compares
 outputs outside the sandbox, and returns only a bounded status result.
 

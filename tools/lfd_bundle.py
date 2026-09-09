@@ -5,6 +5,9 @@ import json
 import os
 import shutil
 
+import lfd_contract
+import lfd_holdout_protocol
+
 
 BUNDLE_SCHEMA_VERSION = 1
 MANIFEST_PATH = os.path.join(".lfd", "bundle-manifest.json")
@@ -90,6 +93,18 @@ def generate_bundle(target_dir, template_root):
     os.makedirs(staging)
     for source, relative in sources:
         _copy_file(source, os.path.join(staging, relative))
+
+    contract = lfd_contract.load_target(target_dir)
+    protocol = {
+        "protocol_version": contract["holdout"]["protocol_version"],
+        "tag_prefix": contract["holdout"]["tag_prefix"],
+        "status_context": lfd_holdout_protocol.STATUS_CONTEXT,
+    }
+    protocol_path = os.path.join(staging, ".lfd", "holdout-protocol.json")
+    os.makedirs(os.path.dirname(protocol_path), exist_ok=True)
+    with open(protocol_path, "w") as stream:
+        json.dump(protocol, stream, indent=2, sort_keys=True)
+        stream.write("\n")
 
     file_hashes = {relative: _hash(os.path.join(staging, relative))
                    for relative in _files(staging)}

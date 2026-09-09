@@ -385,7 +385,7 @@
             <div>
               <p class="step-label">REQUEST</p>
               <h3>Tag a pinned commit</h3>
-              <p>An annotated <code>holdout-check-N</code> tag asks the hub to score one exact SHA.</p>
+              <p>An immutable <code>holdout-check-v1-&lt;sha12&gt;-&lt;request-id&gt;</code> tag binds the request to one exact commit.</p>
             </div>
           </li>
           <li>
@@ -602,12 +602,13 @@
         <div class="activation-gate">
           <div>
             <p class="gate-label">ACTIVATION REQUIRES</p>
-            <h3>A live product. A fresh audit. A calibrated scorer.</h3>
+            <h3>A live product. Final judgment. Fresh evidence. A calibrated scorer.</h3>
           </div>
           <div class="gate-pills" aria-label="Required activation gates">
             <span>✓ LIVENESS</span>
             <span>✓ AUDIT</span>
             <span>✓ CALIBRATION</span>
+            <span>✓ ACTIVATION RECEIPT</span>
           </div>
         </div>
       </section>

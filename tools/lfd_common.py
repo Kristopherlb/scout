@@ -32,6 +32,7 @@ def config_value(config, key, *, allow_empty=False):
     paths = {
         "TARGET_NAME": "identity.name",
         "TARGET_REPO_URL": "identity.repository_url",
+        "HOLDOUT_PROTOCOL_VERSION": "holdout.protocol_version",
         "HOLDOUT_TAG_PREFIX": "holdout.tag_prefix",
         "STATUS": "lifecycle.status",
         "MIN_HOURS_BETWEEN_HOLDOUT": "holdout.min_hours_between",
