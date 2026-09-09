@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lfd_common  # noqa: E402
 import lfd_interface  # noqa: E402
 
-
 REQUIRED_FINDINGS = tuple(sorted(lfd_common.AUDIT_FINDINGS))
 
 

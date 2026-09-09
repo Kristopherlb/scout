@@ -2,7 +2,6 @@
 """Idempotent managed instruction blocks for supported agent runtimes."""
 import os
 
-
 BEGIN = "<!-- BEGIN SCOUT LFD MANAGED BLOCK -->"
 END = "<!-- END SCOUT LFD MANAGED BLOCK -->"
 BODY = """## Scout LFD execution
@@ -29,6 +28,15 @@ class ShimError(ValueError):
         super().__init__(f"{code} at {path}: {message}")
 
 
+def _path_has_symlink(checkout, relative):
+    current = checkout
+    for part in relative.split(os.sep):
+        current = os.path.join(current, part)
+        if os.path.islink(current):
+            return True
+    return False
+
+
 def _existing(path):
     if not os.path.exists(path):
         return ""
@@ -52,8 +60,12 @@ def _bounds(path, content):
 
 
 def preflight_all(checkout):
+    checkout = os.path.abspath(checkout)
     for relative in DESTINATIONS:
-        path = os.path.join(os.path.abspath(checkout), relative)
+        path = os.path.join(checkout, relative)
+        if _path_has_symlink(checkout, relative):
+            raise ShimError("shim_conflict", relative,
+                            "managed instruction path contains a symbolic link")
         _bounds(path, _existing(path))
 
 
@@ -62,6 +74,9 @@ def apply_all(checkout):
     preflight_all(checkout)
     for relative in DESTINATIONS:
         path = os.path.join(checkout, relative)
+        if _path_has_symlink(checkout, relative):
+            raise ShimError("shim_conflict", relative,
+                            "managed instruction path contains a symbolic link")
         content = _existing(path)
         bounds = _bounds(path, content)
         if bounds:

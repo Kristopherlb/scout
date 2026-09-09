@@ -3,6 +3,17 @@
 Onboard real targets only from a private operational copy of Scout. The
 public source repository must contain synthetic fixtures only.
 
+Before using real material, run the public lifecycle proof from a trusted
+checkout:
+
+```bash
+bin/lfd walkthrough
+```
+
+It uses only `_example`, makes no network request, and leaves the launching
+checkout unchanged. [The walkthrough guide](walkthrough.md) explains every
+stage and the fixture's limits.
+
 ## 1. Scaffold the registry entry
 
 ```bash
@@ -106,6 +117,12 @@ supported way to set active status and writes an activation receipt. Editing
 
 CI and polling block active targets when liveness, audit, calibration, or the
 activation receipt is missing, failed, malformed, or stale.
+
+All agent-facing commands accept `--json`. Their versioned envelope contains
+the command, target, status, stage, artifacts, stable errors, and next actions.
+Exit codes are `0` for success, `2` for invalid input or contract, `3` while
+judgment or an external result is pending, and `4` for infrastructure or
+transport failure.
 
 ## 5. Configure private automation
 

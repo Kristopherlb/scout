@@ -90,6 +90,12 @@ shell adapters receive a fixed NUL-delimited vocabulary and never source or
 evaluate configuration. `holdout.protocol_version` is required and must name an
 implemented protocol.
 
+The agent-facing command contract is a version-1 JSON envelope containing
+`command`, `target`, `status`, `stage`, `artifacts`, `errors`, and
+`next_actions`. Exit statuses are `0` success, `2` invalid input/contract,
+`3` pending judgment or external result, and `4` infrastructure/transport
+failure.
+
 ## The poll flow (`ops/poll-and-score.sh <target-dir>`)
 
 1. Skip unless `lifecycle.status` is `active`; skip past the run budget.
@@ -188,25 +194,26 @@ compressibility lint. A generated `score-holdout.sh` can import
 `trace_lines` to fingerprint the code path each holdout case executes, then
 emit `coverage_variance` (0 = every case ran the same lines → dispatcher
 over a lookup table; 1 = diverse paths → genuine logic) in its JSON. The
-poll passes it into the log row; `lfd status` flags any value below
-`COVERAGE_VARIANCE_FLOOR` (default 0.2). Heuristic and advisory — a low
-value is a "go look" signal for patch mode, never an automatic VOID.
+poll passes it into the log row; `lfd status` flags any value below the
+configured `detectors.coverage_variance.floor`. Its configured
+`advisory | blocking` policy decides whether a low value is an informative
+flag or a failing bounded status; the detector mathematics do not change.
 
 ## Canary lifecycle
 
 1. Design mode builds `eval/holdout/` cases.
 2. `bin/lfd canaries <target>` embeds `LFD-CANARY-{16hex}` in every stored
    answer and records the list in `canary-list.json`.
-3. The target-side `lint.sh` (generated in design mode) greps working tree +
-   git history for any canary — a hit is proof of eval access and VOIDs the
-   score.
+3. The target-visible development scorer and private scorer scan the working
+   tree and reachable Git history for any canary — a hit is proof of eval
+   access and rejects scoring.
 4. Eval reused or exposed → regenerate (canaries are per-run).
 
 ## Divergence detection
 
 `tools/lfd_common.check_divergence`: over the last `DIVERGENCE_WINDOW_CYCLES`
 rows, dev's lower CI bound rising while holdout is flat/falling (2%
-tolerance). This is the canonical reward-over-optimization signature; it
-flips the commit status to failure, badges the dashboard, and per `goal.md`
-auto-triggers patch mode — routed to the strongest available model, never
-the executor.
+tolerance). This is one reward-over-optimization signal, not a universal
+proof. Scout badges it and recommends the hub-side patch workflow. Its
+configured `advisory | blocking` policy determines whether the bounded commit
+status also fails; patch authority never belongs to the target-side executor.

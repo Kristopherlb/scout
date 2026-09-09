@@ -139,7 +139,7 @@ $HEALTH_CHECK"
     fi
   fi
 
-  PROBE_JSON=""; COVERAGE_VARIANCE=""
+  PROBE_JSON=""; COVERAGE_VARIANCE=""; COVERAGE_VERDICT=""
   if [ "$LIVENESS" = "liveness_failed" ]; then
     HOLDOUT_SCORE="0"; CI_LOW="0"; CI_HIGH="0"; SCORING_SECONDS="0"
     echo "[$TARGET_NAME] ${TAG}: LIVENESS FAILED — scored 0 (vaporware gate)"
@@ -202,10 +202,21 @@ row = {'probe': json.load(sys.stdin)}
 print('below-floor' if lfd_common.probe_floor_breaches(row, float(sys.argv[1])) else 'ok')" \
       "$PROBE_FLOOR")
   fi
+  if [ -n "$COVERAGE_VARIANCE" ]; then
+    COVERAGE_VERDICT=$(python3 - "$COVERAGE_VARIANCE" "$COVERAGE_VARIANCE_FLOOR" <<'PY'
+import sys
+value, floor = map(float, sys.argv[1:])
+print("below-floor" if value < floor else "ok")
+PY
+)
+  fi
 
   # --- egress: score + CI + flags only; operator detail stays hub-side ---
   "$HUB_ROOT/ops/post-status.sh" "$TARGET_REPO_URL" "$SHA" \
-    "$HOLDOUT_SCORE" "$CI_LOW" "$CI_HIGH" "$DIVERGENCE" "$PROBE_VERDICT"
+    "$HOLDOUT_SCORE" "$CI_LOW" "$CI_HIGH" \
+    "$DIVERGENCE" "$DIVERGENCE_ENFORCEMENT" \
+    "$PROBE_VERDICT" "$PROBE_ENFORCEMENT" \
+    "$COVERAGE_VERDICT" "$COVERAGE_VARIANCE_ENFORCEMENT"
 
   # --- human-facing job summary (full detail is fine here — hub-side) ---
   if [ "$SUMMARY" != "/dev/null" ] && ! grep -q "| target |" "$SUMMARY" 2>/dev/null; then

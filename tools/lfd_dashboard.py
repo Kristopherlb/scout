@@ -163,9 +163,16 @@ DATA.targets.forEach(t => {
   const card = document.createElement("div");
   card.className = "card";
   let badges = '<span class="badge ' + (t.status === "active" ? "active" : "") + '">' + t.status + "</span>";
-  if (t.divergence) badges += '<span class="badge flag">DIVERGENCE</span>';
+  if (t.divergence) badges += '<span class="badge ' +
+    (t.detector_enforcement.divergence === "blocking" ? "flag" : "warn") +
+    '">DIVERGENCE · ' + t.detector_enforcement.divergence + '</span>';
   if (t.liveness_failed) badges += '<span class="badge flag">LIVENESS FAILED</span>';
-  if (t.probe_breach) badges += '<span class="badge flag">PROBE BELOW FLOOR</span>';
+  if (t.probe_breach) badges += '<span class="badge ' +
+    (t.detector_enforcement.probe === "blocking" ? "flag" : "warn") +
+    '">PROBE BELOW FLOOR · ' + t.detector_enforcement.probe + '</span>';
+  if (t.coverage_breach) badges += '<span class="badge ' +
+    (t.detector_enforcement.coverage_variance === "blocking" ? "flag" : "warn") +
+    '">COVERAGE BELOW FLOOR · ' + t.detector_enforcement.coverage_variance + '</span>';
   if (!t.audited && t.status !== "example") badges += '<span class="badge warn">UNAUDITED</span>';
   const last = t.rows[t.rows.length - 1];
   card.innerHTML =
@@ -183,7 +190,7 @@ DATA.targets.forEach(t => {
   app.appendChild(card);
 });
 if (!DATA.targets.length)
-  app.innerHTML = '<div class="card empty">No targets registered. Onboard one with bin/lfd new-target.</div>';
+  app.innerHTML = '<div class="card empty">No targets registered. Onboard one with bin/lfd onboard start.</div>';
 </script>
 </body>
 </html>
@@ -203,6 +210,8 @@ def build_data(hub_root):
         rows = lfd_common.read_log(os.path.join(target_dir, "log.jsonl"))
         window = lfd_common.config_int(config, "DIVERGENCE_WINDOW_CYCLES", minimum=2)
         floor = lfd_common.config_float(config, "PROBE_FLOOR", minimum=0, maximum=1)
+        coverage_floor = lfd_common.config_float(
+            config, "COVERAGE_VARIANCE_FLOOR", minimum=0, maximum=1)
         probe_rows = [r for r in rows if r.get("probe")]
         scored = [r for r in rows if r.get("holdout_score") is not None]
         cost = sum(r.get("reported_cost_usd") or 0 for r in scored)
@@ -216,11 +225,19 @@ def build_data(hub_root):
             "budget": lfd_common.config_int(
                 config, "BUDGET_MAX_HOLDOUT_RUNS", minimum=1),
             "probe_floor": floor,
+            "detector_enforcement": {
+                "divergence": lfd_common.config_value(config, "DIVERGENCE_ENFORCEMENT"),
+                "probe": lfd_common.config_value(config, "PROBE_ENFORCEMENT"),
+                "coverage_variance": lfd_common.config_value(
+                    config, "COVERAGE_VARIANCE_ENFORCEMENT"),
+            },
             "audited": lfd_common.audit_state(target_dir)[0] == "ok",
             "divergence": lfd_common.check_divergence(rows, window),
             "liveness_failed": bool(rows) and rows[-1].get("liveness") == "liveness_failed",
             "probe_breach": bool(probe_rows) and bool(
                 lfd_common.probe_floor_breaches(probe_rows[-1], floor)),
+            "coverage_breach": bool(rows) and rows[-1].get("coverage_variance") is not None
+            and rows[-1]["coverage_variance"] < coverage_floor,
             "models": sorted({r.get("model_id") for r in rows if r.get("model_id")}),
             "efficiency": {
                 "per_dollar": (delta / cost) if (delta is not None and cost > 0) else None,

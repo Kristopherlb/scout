@@ -134,6 +134,9 @@ class TestTargetContract(unittest.TestCase):
                          "https://github.com/example/demo.git")
         self.assertEqual(values["STATUS"], "onboarding")
         self.assertEqual(values["HOLDOUT_PROTOCOL_VERSION"], "1")
+        self.assertEqual(values["DIVERGENCE_ENFORCEMENT"], "advisory")
+        self.assertEqual(values["PROBE_ENFORCEMENT"], "advisory")
+        self.assertEqual(values["COVERAGE_VARIANCE_ENFORCEMENT"], "advisory")
 
     def test_get_adapter_returns_one_validated_value(self):
         self.write()

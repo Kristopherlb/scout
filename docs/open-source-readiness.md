@@ -1,11 +1,11 @@
-# Open-source readiness audit
+# Public-source release posture
 
 ## Status
 
-The repository-local release candidate is ready for a clean-history public
-repository. Do **not** change the visibility of the private source repository:
-its Git history contains real evaluation campaigns that remain recoverable
-after deletion.
+This repository is the sanitized public framework. Real operational hubs stay
+separate and private; their Git histories contain evaluation campaigns that
+remain recoverable after deletion. Never change a hub's visibility or merge
+its history into this repository.
 
 ## Sanitization performed
 
@@ -60,16 +60,13 @@ Before publishing, confirm that the repository owner has the right to license
 all retained source and documentation under Apache-2.0. The sanitized snapshot
 contains no declared runtime dependencies.
 
-## Publication checklist
+## Release checklist
 
-1. Build the release repository from a clean snapshot of this candidate; do
-   not copy `.git` or connect the private source as a public remote.
-2. Create a new, empty public repository and push the clean snapshot as its
-   first commit.
-3. Enable private vulnerability reporting.
-4. Protect `main` and require the CI and secret-scan jobs before merge.
-5. Configure repository description, topics, issue labels, and Discussions if
-   desired.
-6. Re-run unit, policy, lint, type, coverage, sandbox, and secret checks from
-   the public clone.
-7. Tag the first release only after those checks pass on GitHub-hosted runners.
+1. Confirm `targets/` contains only `_example` and run the public-release gate.
+2. Run the executable walkthrough, unit, policy, lint, type, coverage,
+   sandbox-isolation, RAC, and secret checks.
+3. Confirm Pages, README, architecture, onboarding, SECURITY, and CONTRIBUTING
+   describe the commands and protocol that actually ship.
+4. Protect `main` and require every CI and secret-scan job before merge.
+5. Create a version tag only after the slice's contract passes on the public
+   repository's hosted runners.

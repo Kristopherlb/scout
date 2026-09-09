@@ -1,0 +1,52 @@
+{
+  "audited_at": "2026-09-09T00:59:49Z",
+  "hashes": {
+    "bundle": "3197d289c06b86d75301503403b1006c16c4f33391fc7e0763e1526a77bd27d6",
+    "calibration": "ad353b8d7ff1a703c762eb47a4024ece4d918614e4ee92e9140b675b233308dc",
+    "eval_manifest": "019f942df6b465450c8aa14a3cb0b28db52138b0a5a3ace332a1cbb482c4d729",
+    "goal": "a450515fb13f182962d9283ece2df9107b565fdf1e8994c4f42b10304c4dd63a",
+    "harness": "c24e6a86965dbf38d6ae8f51cc77a620b19a2aab43f7dc199916c84b488dab2c"
+  },
+  "mechanical_results": [
+    {
+      "detail": "all 5 constraints matched",
+      "item": "A. constraint-instrument pairing",
+      "verdict": "PASS"
+    },
+    {
+      "detail": "no product/mechanism names found",
+      "item": "D0. infra-agnosticism",
+      "verdict": "PASS"
+    },
+    {
+      "detail": "actual holdout N=2, derived/required N=2",
+      "item": "D. eval sizing",
+      "verdict": "PASS"
+    },
+    {
+      "detail": "all 2 holdout items carry a canary",
+      "item": "D. canary coverage",
+      "verdict": "PASS"
+    },
+    {
+      "detail": "score-holdout.sh references an uncertainty/range mechanism",
+      "item": "E. interval discipline",
+      "verdict": "PASS"
+    },
+    {
+      "detail": "scorers missing named guardrails: []; probe-holdout.sh present: True",
+      "item": "F. probe/lint completeness",
+      "verdict": "PASS"
+    }
+  ],
+  "required_independent_findings": [
+    "blinding_verification",
+    "calibration_quality",
+    "escalation_wiring",
+    "goodhart_fence_matching",
+    "leakage_estimate"
+  ],
+  "schema_version": 1,
+  "state": "incomplete",
+  "verdict": "PASS"
+}

@@ -29,9 +29,10 @@ acceptance bar, confidence, and smallest meaningful movement.
    [`../lfd-shared/references/goal-template.md`](../lfd-shared/references/goal-template.md).
    Ground every constraint in a named instrument and require one coherent
    variable per optimization cycle.
-2. Size the eval with `../lfd-shared/scripts/power-calc.py`. Record its inputs
-   and result; never replace the calculation with intuition. Build diverse,
-   non-overlapping `eval/dev` and `eval/holdout` sets at or above the result.
+2. Size the eval with `../lfd-shared/scripts/power-calc.py --bar <bar>
+   --delta <delta> --confidence <confidence>`. Record its inputs and result;
+   never replace the calculation with intuition. Build diverse, non-overlapping
+   `eval/dev` and `eval/holdout` sets at or above the result.
 3. Generate per-run holdout canaries with `bin/lfd canaries <name>`. Keep
    holdout answers and the canary list private.
 4. Enumerate at least ten target-specific shortcuts using
@@ -39,8 +40,9 @@ acceptance bar, confidence, and smallest meaningful movement.
    Classify each as regressional, extremal, causal, or adversarial; pair it
    with the matching fence family and an executable detector.
 5. Measure every feedback channel with
-   `../lfd-shared/scripts/leak-audit-calc.py`. Reduce feedback resolution or
-   enlarge/rotate the eval when the reconstruction estimate fails.
+   `../lfd-shared/scripts/leak-audit-calc.py`, passing the design's explicit
+   reconstruction threshold. Reduce feedback resolution or enlarge/rotate the
+   eval when the estimate fails.
 6. Replace all fail-closed onboarding harnesses with executable task-specific
    implementations:
 

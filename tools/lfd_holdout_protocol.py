@@ -5,7 +5,6 @@ import re
 
 import lfd_common
 
-
 REQUEST_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 PAYLOAD_FIELDS = {

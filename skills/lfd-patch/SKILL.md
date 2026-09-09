@@ -5,8 +5,8 @@ description: Repairs a Scout loss function after divergence, probe weakness, lea
 
 # LFD Patch
 
-Run this hub-side with the strongest available design model, never from the
-executor's target context.
+Run this hub-side in a design-authorized context, never from the executor's
+target context.
 
 1. Read the append-only run log, bounded results, private probe evidence,
    previous audit, and diff since the last honest checkpoint. Distinguish real

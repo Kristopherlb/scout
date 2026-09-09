@@ -93,6 +93,13 @@
       "evidence": "python3 -m unittest tools.tests.test_contract.TestTargetContract.test_rejects_legacy_config"
     },
     {
+      "control_id": "SCOUT-RUN-009",
+      "requirement": "rac/requirements/scout-runtime-integrity.md#REQ-009",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_hub.TestDetectorEnforcement"
+    },
+    {
       "control_id": "SCOUT-CI-001",
       "requirement": "rac/requirements/scout-ci-and-evidence.md#REQ-001",
       "enforcement": "ci",
@@ -273,6 +280,34 @@
       "enforcement": "human-review",
       "severity": "WARN",
       "evidence": "Pull-request review of blocking guardrail test coverage"
+    },
+    {
+      "control_id": "SCOUT-WALK-001",
+      "requirement": "rac/requirements/scout-public-walkthrough.md#REQ-001",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_walkthrough.TestPublicWalkthrough.test_walkthrough_exercises_refusal_and_success"
+    },
+    {
+      "control_id": "SCOUT-WALK-002",
+      "requirement": "rac/requirements/scout-public-walkthrough.md#REQ-002",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_walkthrough.TestPublicWalkthrough.test_example_bundle_contains_no_private_evidence"
+    },
+    {
+      "control_id": "SCOUT-WALK-003",
+      "requirement": "rac/requirements/scout-public-walkthrough.md#REQ-003",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_walkthrough.TestPublicWalkthrough.test_public_docs_match_runtime"
+    },
+    {
+      "control_id": "SCOUT-WALK-004",
+      "requirement": "rac/requirements/scout-public-walkthrough.md#REQ-004",
+      "enforcement": "ci",
+      "severity": "FAIL",
+      "evidence": "python3 -m unittest tools.tests.test_walkthrough.TestPublicWalkthrough.test_release_workflow_keeps_required_jobs_blocking"
     }
   ]
 }

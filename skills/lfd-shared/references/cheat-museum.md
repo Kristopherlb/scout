@@ -28,7 +28,7 @@ answer per cycle. The agent accumulates misses into a keyword lookup table —
 N items, N keywords, "victory."
 **Type:** adversarial (mining a feedback channel).
 **Fence:** leak audit (bits per cycle × cycles vs. eval size — written
-arithmetic, checked in Phase 8.5); cap the miss list; widen the eval until
+arithmetic, checked in the independent audit); cap the miss list; widen the eval until
 enumeration doesn't pay; capacity-cap the keyword artifact itself.
 
 ## 3. Brute enumeration

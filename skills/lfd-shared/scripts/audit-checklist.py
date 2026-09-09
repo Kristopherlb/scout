@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-audit-checklist.py — Phase 8.5 mechanical pass. Runs the checkable items
+audit-checklist.py — independent audit mechanical pass. Runs the checkable items
 from references/audit-checklist.md deterministically, so the independent
 audit context spends its judgment only on what's genuinely subjective
 (does this fence's TYPE actually match this cheat's TYPE — a semantic
@@ -25,19 +25,22 @@ BANNED_PRODUCT_TERMS = [
     "sidecar", "istio", "linkerd",
 ]
 
-def check_constraint_instrument_pairing(goal_text, dev_harness_dir):
+def check_constraint_instrument_pairing(goal_text, harness_dir, dev_harness_dir):
     constraints_section = re.search(
         r"## Constraints\n(.*?)(?=\n## )", goal_text, re.S)
     if not constraints_section:
         return {"item": "A. constraint-instrument pairing",
                 "verdict": "FAIL", "detail": "no Constraints section found"}
-    lines = [l.strip("- ").strip() for l in constraints_section.group(1).splitlines()
-             if l.strip().startswith("-")]
+    lines = [line.strip("- ").strip()
+             for line in constraints_section.group(1).splitlines()
+             if line.strip().startswith("-")]
     lint_text = ""
-    score_path = os.path.join(dev_harness_dir, "score-dev.sh")
-    if os.path.exists(score_path):
-        with open(score_path) as f:
-            lint_text = f.read()
+    for score_path in (os.path.join(dev_harness_dir, "score-dev.sh"),
+                       os.path.join(harness_dir, "score-holdout.sh"),
+                       os.path.join(harness_dir, "probe-holdout.sh")):
+        if os.path.exists(score_path):
+            with open(score_path) as f:
+                lint_text += f.read()
     unpaired = []
     for line in lines:
         # heuristic: does any word from the constraint line appear as a
@@ -102,7 +105,7 @@ def check_interval_discipline(harness_dir):
     return {
         "item": "E. interval discipline",
         "verdict": "PASS" if has_interval else "FAIL",
-        "detail": "score-holdout.sh references an interval/bootstrap mechanism" if has_interval else "score-holdout.sh has no visible interval computation"
+        "detail": "score-holdout.sh references an uncertainty/range mechanism" if has_interval else "score-holdout.sh has no visible uncertainty computation"
     }
 
 def check_probe_lint_completeness(harness_dir, dev_harness_dir):
@@ -135,7 +138,8 @@ def main():
         goal_text = f.read()
 
     results = [
-        check_constraint_instrument_pairing(goal_text, args.dev_harness_dir),
+        check_constraint_instrument_pairing(goal_text, args.harness_dir,
+                                            args.dev_harness_dir),
         check_infra_agnosticism(goal_text),
         check_eval_sizing(goal_text, args.eval_dir),
         check_canaries_present(args.eval_dir),
@@ -148,7 +152,7 @@ def main():
         "but judging whether bits-per-call was estimated honestly needs a read)",
         "C. Goodhart type<->fence family matching (semantic judgment per cheat)",
         "E.2 calibration gap quality (known-good/known-bad separation, "
-        "needs Phase 6's actual run output)",
+        "needs the actual calibration run output)",
         "G. escalation wiring quality and patch-mode routing statement",
         "H. blinding verification (agent-visible bundle contains no private evidence)",
     ]

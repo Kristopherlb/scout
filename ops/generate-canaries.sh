@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # generate-canaries.sh — embed a unique canary string in every holdout item.
-# Deterministic. Re-run whenever the eval is rotated (canaries are per-run,
+# Cryptographically random. Re-run whenever the eval is rotated (canaries are per-run,
 # per SKILL.md Phase 3 — never reuse across runs).
 #
 # Usage: ./generate-canaries.sh <target-dir>      (e.g. targets/myrepo)

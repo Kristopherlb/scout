@@ -33,7 +33,7 @@
     "build_command": "",
     "boot_command": "",
     "health_check": "",
-    "exemption": "fixture-only target; never executed",
+    "exemption": "command-line library fixture with no service entrypoint",
     "timeout_seconds": 600
   },
   "sandbox": {
@@ -46,5 +46,5 @@
   "executor": {
     "model": "executor-model-v1"
   },
-  "notes": "Committed demo target: synthetic history exercising every flag. Never polled."
+  "notes": "Committed executable demo target with synthetic history; never polled from public automation."
 }

@@ -78,7 +78,8 @@ def render_target(name, config, target_dir, verbose=False):
     lines.append(f"  dev      {fmt_ci(last.get('dev_score'), last.get('dev_ci'))}")
 
     if lfd_common.check_divergence(rows, window):
-        lines.append("  🚩 DIVERGENCE: dev rising while holdout flat/falling — patch mode trigger")
+        mode = lfd_common.config_value(config, "DIVERGENCE_ENFORCEMENT")
+        lines.append(f"  🚩 DIVERGENCE [{mode}]: dev rising while holdout flat/falling — patch mode trigger")
 
     if last.get("liveness") == "liveness_failed":
         lines.append("  🚩 LIVENESS FAILED on last run — build/boot/health gate (vaporware?)")
@@ -89,7 +90,9 @@ def render_target(name, config, target_dir, verbose=False):
         breaches = lfd_common.probe_floor_breaches(probe_rows[-1], floor)
         detail = " · ".join(f"{k}: {v:.2f}" if isinstance(v, (int, float)) else f"{k}: ?"
                             for k, v in sorted(ops.items()))
-        flag = "  🚩 BELOW FLOOR: " + ", ".join(sorted(breaches)) if breaches else ""
+        mode = lfd_common.config_value(config, "PROBE_ENFORCEMENT")
+        flag = (f"  🚩 BELOW FLOOR [{mode}]: " + ", ".join(sorted(breaches))
+                if breaches else "")
         lines.append(f"  probe    {detail} (floor {floor:.2f}){flag}")
 
     cov_rows = [r for r in rows if r.get("coverage_variance") is not None]
@@ -97,7 +100,9 @@ def render_target(name, config, target_dir, verbose=False):
         cov = cov_rows[-1]["coverage_variance"]
         cov_floor = lfd_common.config_float(
             config, "COVERAGE_VARIANCE_FLOOR", minimum=0, maximum=1)
-        flag = "  🚩 LOOKUP-TABLE SUSPICION (same paths across cases)" if cov < cov_floor else ""
+        mode = lfd_common.config_value(config, "COVERAGE_VARIANCE_ENFORCEMENT")
+        flag = (f"  🚩 LOOKUP-TABLE SUSPICION [{mode}] (same paths across cases)"
+                if cov < cov_floor else "")
         lines.append(f"  coverage variance {cov:.2f} (floor {cov_floor:.2f}){flag}")
 
     per_dollar, per_mtok = efficiency(rows)
@@ -140,7 +145,7 @@ def main():
         if not targets:
             sys.exit(f"no such target: {args.target}")
     if not targets:
-        print("No targets registered. Onboard one with: bin/lfd new-target <name> <repo-url>")
+        print("No targets registered. Onboard one with: bin/lfd onboard start <name> <repo-url>")
         return
 
     print(f"LFD eval hub — {len(targets)} target(s)\n")

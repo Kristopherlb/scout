@@ -1,5 +1,6 @@
 {
-  "input": {"question": "Convert 42 veldorian crowns to meridian shillings at the standard peg."},
-  "answer": "168 shillings",
+  "id": "holdout-2",
+  "input": {"value": 5},
+  "answer": 25,
   "_canary": "LFD-CANARY-0000000000000002"
 }

@@ -83,6 +83,16 @@ class TestOnboarding(unittest.TestCase):
         serialized = json.dumps(profile)
         self.assertNotIn(self.checkout, serialized)
 
+    def test_inspect_accepts_git_worktree_checkout(self):
+        target = self.start()["target_dir"]
+        worktree = os.path.join(self.tmp, "linked-worktree")
+        subprocess.run(["git", "-C", self.checkout, "worktree", "add", "--detach",
+                        worktree], capture_output=True, text=True, check=True)
+        profile = lfd_onboard.inspect_target(target, worktree)
+        self.assertEqual(profile["source_sha"], subprocess.run(
+            ["git", "-C", worktree, "rev-parse", "HEAD"], capture_output=True,
+            text=True, check=True).stdout.strip())
+
     def test_bundle_is_deterministic_and_verifiable(self):
         target = self.start()["target_dir"]
         self.make_design(target)
@@ -93,6 +103,15 @@ class TestOnboarding(unittest.TestCase):
         result = lfd_bundle.verify_bundle(target)
         self.assertEqual(result["status"], "ok")
 
+    def test_bundle_verification_rejects_source_drift(self):
+        target = self.start()["target_dir"]
+        self.make_design(target)
+        lfd_bundle.generate_bundle(target, os.path.join(HUB_ROOT, "templates"))
+        write(os.path.join(target, "goal.md"), "# changed after generation\n")
+        with self.assertRaises(lfd_bundle.BundleError) as raised:
+            lfd_bundle.verify_bundle(target)
+        self.assertEqual(raised.exception.code, "bundle_drift")
+
     def test_bundle_rejects_private_material(self):
         target = self.start()["target_dir"]
         self.make_design(target)
@@ -101,6 +120,15 @@ class TestOnboarding(unittest.TestCase):
             lfd_bundle.generate_bundle(target, os.path.join(HUB_ROOT, "templates"))
         self.assertEqual(raised.exception.code, "private_material")
         self.assertFalse(os.path.exists(os.path.join(target, "bundle.new")))
+
+    def test_bundle_rejects_allowlisted_symlink_source(self):
+        target = self.start()["target_dir"]
+        self.make_design(target)
+        os.symlink(os.path.join(target, "eval", "holdout", "case.json"),
+                   os.path.join(target, "eval", "dev", "linked.json"))
+        with self.assertRaises(lfd_bundle.BundleError) as raised:
+            lfd_bundle.generate_bundle(target, os.path.join(HUB_ROOT, "templates"))
+        self.assertEqual(raised.exception.code, "unsafe_symlink")
 
     def test_equip_preserves_unrelated_files_and_rejects_conflict(self):
         target = self.start()["target_dir"]
@@ -115,6 +143,21 @@ class TestOnboarding(unittest.TestCase):
         with self.assertRaises(lfd_bundle.BundleError) as raised:
             lfd_bundle.equip_bundle(target, self.checkout)
         self.assertEqual(raised.exception.code, "target_conflict")
+
+    def test_equip_rejects_managed_destination_symlink(self):
+        target = self.start()["target_dir"]
+        self.make_design(target)
+        lfd_bundle.generate_bundle(target, os.path.join(HUB_ROOT, "templates"))
+        caller_file = os.path.join(self.checkout, "caller-owned.txt")
+        write(caller_file, "do not overwrite\n")
+        managed = os.path.join(self.checkout, ".lfd", "goal.md")
+        os.makedirs(os.path.dirname(managed), exist_ok=True)
+        os.symlink(caller_file, managed)
+        with self.assertRaises(lfd_bundle.BundleError) as raised:
+            lfd_bundle.equip_bundle(target, self.checkout)
+        self.assertEqual(raised.exception.code, "target_conflict")
+        with open(caller_file) as stream:
+            self.assertEqual(stream.read(), "do not overwrite\n")
 
     def test_equipped_dev_command_delegates_once_to_managed_scorer(self):
         target = self.start()["target_dir"]
@@ -137,6 +180,15 @@ class TestOnboarding(unittest.TestCase):
         self.make_design(target)
         designed = lfd_onboard.onboarding_status(target, self.checkout)
         self.assertEqual(designed["stage"], "needs_bundle")
+
+    def test_typed_unavailable_runtime_error_does_not_look_like_scaffold(self):
+        target = self.start()["target_dir"]
+        lfd_onboard.inspect_target(target, self.checkout)
+        self.make_design(target)
+        with open(os.path.join(target, "dev-harness", "score-dev.sh"), "a") as stream:
+            stream.write("# capability_unavailable remains a valid runtime error code\n")
+        self.assertEqual(lfd_onboard.onboarding_status(target, self.checkout)["stage"],
+                         "needs_bundle")
 
     def test_run_executes_deterministic_stages_then_stops_for_design(self):
         result = lfd_onboard.run_onboarding(
@@ -161,6 +213,13 @@ class TestOnboarding(unittest.TestCase):
                               capture_output=True, text=True)
         self.assertEqual(proc.returncode, 2)
 
+    def test_removed_new_target_alias_fails_with_stable_error(self):
+        proc = subprocess.run([os.path.join(HUB_ROOT, "bin", "lfd"), "new-target",
+                               "demo", self.checkout], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("unknown command", proc.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.hub, "targets", "demo")))
+
     def test_agent_json_flag_works_after_onboard_verb(self):
         self.start()
         proc = subprocess.run(
@@ -172,6 +231,12 @@ class TestOnboarding(unittest.TestCase):
         self.assertEqual(result["status"], "action_required")
         self.assertEqual(result["stage"], "needs_inspection")
         self.assertEqual(result["errors"], [])
+
+    def test_active_status_is_success_not_pending(self):
+        self.assertFalse(lfd_onboard._requires_action("active"))
+        self.assertFalse(lfd_onboard._requires_action("ready_for_activation"))
+        self.assertFalse(lfd_onboard._requires_action("example_ready"))
+        self.assertTrue(lfd_onboard._requires_action("needs_judgment"))
 
 
 if __name__ == "__main__":

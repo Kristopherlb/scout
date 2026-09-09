@@ -114,6 +114,16 @@ class TestHoldoutProtocol(unittest.TestCase):
                                  "--format=%(contents)").stdout)
         self.assertEqual(payload["requested_sha"], self.sha)
 
+    def test_request_rejects_invalid_score_interval(self):
+        env = dict(os.environ)
+        env["LFD_REQUEST_ID"] = "0123456789abcdef0123456789abcdef"
+        result = run(self.repo, "bash", REQUEST, "0.5", "0.6", "0.7",
+                     check=False, env=env)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(json.loads(result.stdout)["errors"][0]["code"],
+                         "invalid_input")
+        self.assertEqual(git(self.origin, "tag", "-l").stdout, "")
+
     def test_fallback_preserves_caller_and_materializes_transactionally(self):
         hook = self.reject_tag_pushes()
         with open(os.path.join(self.repo, "solution.py"), "a") as stream:

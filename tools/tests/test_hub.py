@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(HUB_ROOT, "tools"))
 import lfd_common  # noqa: E402
 
 LOG_UTILS = os.path.join(HUB_ROOT, "ops", "log_utils.py")
+POST_STATUS = os.path.join(HUB_ROOT, "ops", "post-status.sh")
 
 
 def make_rows(dev_lower, holdout):
@@ -132,6 +133,29 @@ class TestLogAppend(unittest.TestCase):
         self.assertNotEqual(res.returncode, 0)
         self.assertEqual(lfd_common.read_log(self.log), [])
 
+    def test_rejects_out_of_range_or_misordered_holdout_result(self):
+        for arguments in (
+                {"score": "1.1"},
+                {"score": "0.5", "ci_low": "0.6", "ci_high": "0.8"}):
+            with self.subTest(arguments=arguments):
+                args = [sys.executable, LOG_UTILS, "append", "--log", self.log,
+                        "--target-dir", self.dir, "--tag", "holdout-check-1",
+                        "--request-id", "0" * 32, "--sha", "abc123",
+                        "--holdout-score", arguments.get("score", "0.5"),
+                        "--ci-low", arguments.get("ci_low", "0.45"),
+                        "--ci-high", arguments.get("ci_high", "0.55")]
+                result = subprocess.run(args, capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(lfd_common.read_log(self.log), [])
+
+    def test_rejects_malformed_private_detector_output(self):
+        for field, value in (("probe_json", '{"operators":{"x":2}}'),
+                             ("coverage_variance", "2")):
+            with self.subTest(field=field):
+                result = self.append(**{field: value})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(lfd_common.read_log(self.log), [])
+
     def test_hostile_agent_fields_stored_as_null(self):
         res = self.append(agent_fields='{"dev_score": "$(id)", "model_id": "a b c"}')
         self.assertEqual(res.returncode, 0, res.stderr)
@@ -185,11 +209,68 @@ class TestDesignCalculators(unittest.TestCase):
             out = subprocess.run(
                 [sys.executable, os.path.join(self.DESIGN, "leak-audit-calc.py"),
                  "--bits-per-call", bits, "--expected-cycles", cycles,
-                 "--eval-size", size],
+                 "--eval-size", size, "--threshold", "0.25"],
                 capture_output=True, text=True, check=True)
             return json.loads(out.stdout)["verdict"]
         self.assertTrue(run("3", "100", "246").startswith("PASS"))
         self.assertTrue(run("50", "500", "100").startswith("FAIL"))
+
+    def test_calculators_require_explicit_valid_policy_inputs(self):
+        commands = (
+            ["power-calc.py", "--bar", "1", "--delta", "0.05",
+             "--confidence", "0.95"],
+            ["leak-audit-calc.py", "--bits-per-call", "1",
+             "--expected-cycles", "1", "--eval-size", "10"],
+            ["ngram-overlap.py", "--solution-dir", ".",
+             "--eval-answers-dir", ".", "--n", "0", "--threshold", "0.4"],
+            ["compressibility.py", "--solution-dir", ".", "--eval-size", "1",
+             "--history-file", os.devnull, "--cycle", "1"],
+        )
+        for command in commands:
+            with self.subTest(command=command[0]):
+                result = subprocess.run(
+                    [sys.executable, os.path.join(self.DESIGN, command[0]), *command[1:]],
+                    capture_output=True, text=True)
+                self.assertEqual(result.returncode, 2)
+
+
+class TestDetectorEnforcement(unittest.TestCase):
+    def post(self, divergence="false", divergence_mode="advisory",
+             probe="", probe_mode="advisory", coverage="",
+             coverage_mode="advisory"):
+        env = dict(os.environ)
+        env["LFD_STATUS_DRYRUN"] = "1"
+        return subprocess.run([
+            POST_STATUS, "https://github.com/example/target.git", "a" * 40,
+            "0.7", "0.6", "0.8", divergence, divergence_mode,
+            probe, probe_mode, coverage, coverage_mode,
+        ], capture_output=True, text=True, env=env)
+
+    def test_advisory_detector_flags_do_not_fail_status(self):
+        result = self.post(divergence="true", probe="below-floor",
+                           coverage="below-floor")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(": success —", result.stdout)
+        self.assertIn("DIVERGENCE", result.stdout)
+        self.assertIn("probe: below floor", result.stdout)
+        self.assertIn("coverage: below floor", result.stdout)
+
+    def test_each_blocking_detector_can_fail_status(self):
+        scenarios = (
+            {"divergence": "true", "divergence_mode": "blocking"},
+            {"probe": "below-floor", "probe_mode": "blocking"},
+            {"coverage": "below-floor", "coverage_mode": "blocking"},
+        )
+        for scenario in scenarios:
+            with self.subTest(scenario=scenario):
+                result = self.post(**scenario)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(": failure —", result.stdout)
+
+    def test_unknown_detector_policy_fails_closed(self):
+        result = self.post(divergence_mode="sometimes")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("invalid detector enforcement", result.stderr)
 
 
 class TestMisc(unittest.TestCase):
@@ -277,7 +358,7 @@ class TestSandbox(unittest.TestCase):
         probe = os.path.join(HUB_ROOT, "targets", "_example",
                              "eval", "holdout", "case-001.json")
         res = self.run_jailed(f"cat '{probe}'")
-        self.assertNotIn("Port Meridian", res.stdout,
+        self.assertNotIn("LFD-CANARY-0000000000000001", res.stdout,
                          "sandbox leaked holdout answer content")
 
     def test_no_network(self):

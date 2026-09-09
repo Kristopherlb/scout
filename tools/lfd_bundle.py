@@ -9,7 +9,6 @@ import lfd_contract
 import lfd_holdout_protocol
 import lfd_shims
 
-
 BUNDLE_SCHEMA_VERSION = 1
 MANIFEST_PATH = os.path.join(".lfd", "bundle-manifest.json")
 
@@ -30,8 +29,12 @@ def _hash(path):
     return digest.hexdigest()
 
 
+def _hash_bytes(value):
+    return hashlib.sha256(value).hexdigest()
+
+
 def _files(root):
-    found = []
+    found: list[str] = []
     if not os.path.isdir(root):
         return found
     for current, directories, names in os.walk(root):
@@ -39,6 +42,27 @@ def _files(root):
         for name in sorted(names):
             found.append(os.path.relpath(os.path.join(current, name), root))
     return found
+
+
+def _symlinks(root):
+    found: list[str] = []
+    if not os.path.isdir(root):
+        return found
+    for current, directories, names in os.walk(root, followlinks=False):
+        for name in directories + names:
+            path = os.path.join(current, name)
+            if os.path.islink(path):
+                found.append(os.path.relpath(path, root))
+    return sorted(found)
+
+
+def _managed_path_has_symlink(root, relative):
+    current = root
+    for part in relative.split(os.sep):
+        current = os.path.join(current, part)
+        if os.path.islink(current):
+            return True
+    return False
 
 
 def _private_source(relative):
@@ -60,14 +84,9 @@ def _copy_file(source, destination):
     shutil.copy2(source, destination)
 
 
-def generate_bundle(target_dir, template_root):
-    """Rebuild ``target_dir/bundle`` from the narrow public allowlist."""
+def _bundle_inputs(target_dir, template_root):
+    """Return destination paths and current bytes for the public allowlist."""
     target_dir = os.path.abspath(target_dir)
-    bundle_dir = os.path.join(target_dir, "bundle")
-    staging = bundle_dir + ".new"
-    if os.path.isdir(staging):
-        shutil.rmtree(staging)
-
     sources = []
     goal = os.path.join(target_dir, "goal.md")
     if not os.path.isfile(goal):
@@ -78,6 +97,10 @@ def generate_bundle(target_dir, template_root):
             (os.path.join(target_dir, "eval", "dev"), os.path.join(".lfd", "eval", "dev")),
             (os.path.join(target_dir, "dev-harness"), os.path.join(".lfd", "harness")),
             (os.path.join(template_root, "target-repo"), "")):
+        links = _symlinks(source_root)
+        if links:
+            raise BundleError("unsafe_symlink", os.path.join(source_root, links[0]),
+                              "agent-visible bundle sources must not contain symbolic links")
         for relative in _files(source_root):
             source_relative = os.path.relpath(os.path.join(source_root, relative), target_dir)
             if _private_source(source_relative):
@@ -91,6 +114,10 @@ def generate_bundle(target_dir, template_root):
     if not os.path.isfile(os.path.join(execute_skill, "SKILL.md")):
         raise BundleError("missing_public_artifact", "skills/lfd-execute/SKILL.md",
                           "target-side execution skill is required")
+    links = _symlinks(execute_skill)
+    if links:
+        raise BundleError("unsafe_symlink", os.path.join(execute_skill, links[0]),
+                          "agent-visible bundle sources must not contain symbolic links")
     for relative in _files(execute_skill):
         sources.append((os.path.join(execute_skill, relative),
                         os.path.join(".agents", "skills", "lfd-execute", relative)))
@@ -100,9 +127,13 @@ def generate_bundle(target_dir, template_root):
         raise BundleError("missing_public_artifact", "dev-harness/score-dev.sh",
                           "the dev scorer is required")
 
-    os.makedirs(staging)
+    inputs = {}
     for source, relative in sources:
-        _copy_file(source, os.path.join(staging, relative))
+        if os.path.islink(source):
+            raise BundleError("unsafe_symlink", relative,
+                              "agent-visible bundle sources must be regular files")
+        with open(source, "rb") as stream:
+            inputs[relative] = (stream.read(), os.stat(source).st_mode)
 
     contract = lfd_contract.load_target(target_dir)
     protocol = {
@@ -110,11 +141,27 @@ def generate_bundle(target_dir, template_root):
         "tag_prefix": contract["holdout"]["tag_prefix"],
         "status_context": lfd_holdout_protocol.STATUS_CONTEXT,
     }
-    protocol_path = os.path.join(staging, ".lfd", "holdout-protocol.json")
-    os.makedirs(os.path.dirname(protocol_path), exist_ok=True)
-    with open(protocol_path, "w") as stream:
-        json.dump(protocol, stream, indent=2, sort_keys=True)
-        stream.write("\n")
+    inputs[os.path.join(".lfd", "holdout-protocol.json")] = (
+        (json.dumps(protocol, indent=2, sort_keys=True) + "\n").encode(), 0o644)
+    return inputs
+
+
+def generate_bundle(target_dir, template_root):
+    """Rebuild ``target_dir/bundle`` from the narrow public allowlist."""
+    target_dir = os.path.abspath(target_dir)
+    bundle_dir = os.path.join(target_dir, "bundle")
+    staging = bundle_dir + ".new"
+    if os.path.isdir(staging):
+        shutil.rmtree(staging)
+    inputs = _bundle_inputs(target_dir, template_root)
+
+    os.makedirs(staging)
+    for relative, (content, mode) in inputs.items():
+        destination = os.path.join(staging, relative)
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        with open(destination, "wb") as stream:
+            stream.write(content)
+        os.chmod(destination, mode)
 
     file_hashes = {relative: _hash(os.path.join(staging, relative))
                    for relative in _files(staging)}
@@ -140,7 +187,7 @@ def _load_manifest(root):
         with open(path) as stream:
             manifest = json.load(stream)
     except (OSError, json.JSONDecodeError) as exc:
-        raise BundleError("invalid_manifest", MANIFEST_PATH, str(exc))
+        raise BundleError("invalid_manifest", MANIFEST_PATH, str(exc)) from exc
     if set(manifest) != {"schema_version", "files"} or manifest["schema_version"] != BUNDLE_SCHEMA_VERSION:
         raise BundleError("invalid_manifest", MANIFEST_PATH, "unsupported manifest shape or version")
     if not isinstance(manifest["files"], dict):
@@ -149,6 +196,10 @@ def _load_manifest(root):
 
 
 def verify_tree(root):
+    links = _symlinks(root)
+    if links:
+        raise BundleError("unsafe_symlink", links[0],
+                          "bundle trees must not contain symbolic links")
     manifest = _load_manifest(root)
     actual = set(_files(root)) - {MANIFEST_PATH}
     expected = set(manifest["files"])
@@ -163,8 +214,18 @@ def verify_tree(root):
     return manifest
 
 
-def verify_bundle(target_dir):
-    manifest = verify_tree(os.path.join(os.path.abspath(target_dir), "bundle"))
+def verify_bundle(target_dir, template_root=None):
+    target_dir = os.path.abspath(target_dir)
+    if template_root is None:
+        template_root = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "..", "templates")
+    manifest = verify_tree(os.path.join(target_dir, "bundle"))
+    inputs = _bundle_inputs(target_dir, template_root)
+    current = {relative: _hash_bytes(content) for relative, (content, _) in inputs.items()}
+    if manifest["files"] != current:
+        changed = sorted(relative for relative in set(manifest["files"]) | set(current)
+                         if manifest["files"].get(relative) != current.get(relative))
+        raise BundleError("bundle_drift", "bundle", "source changed: " + ", ".join(changed))
     return {"status": "ok", "files": len(manifest["files"])}
 
 
@@ -174,7 +235,8 @@ def verify_equipped(checkout):
     manifest = _load_manifest(checkout)
     for relative, expected_hash in manifest["files"].items():
         path = os.path.join(checkout, relative)
-        if not os.path.isfile(path) or _hash(path) != expected_hash:
+        if (_managed_path_has_symlink(checkout, relative)
+                or not os.path.isfile(path) or _hash(path) != expected_hash):
             raise BundleError("bundle_drift", relative,
                               "equipped file is missing or differs from its manifest hash")
         if _private_source(relative):
@@ -187,14 +249,21 @@ def equip_bundle(target_dir, checkout):
     """Install a verified bundle without clobbering caller-owned content."""
     bundle_root = os.path.join(os.path.abspath(target_dir), "bundle")
     checkout = os.path.abspath(checkout)
+    verify_bundle(target_dir)
     manifest = verify_tree(bundle_root)
     old_manifest = None
+    if _managed_path_has_symlink(checkout, MANIFEST_PATH):
+        raise BundleError("target_conflict", MANIFEST_PATH,
+                          "managed manifest path contains a symbolic link")
     if os.path.isfile(os.path.join(checkout, MANIFEST_PATH)):
         old_manifest = _load_manifest(checkout)
     lfd_shims.preflight_all(checkout)
 
     for relative, new_hash in manifest["files"].items():
         destination = os.path.join(checkout, relative)
+        if _managed_path_has_symlink(checkout, relative):
+            raise BundleError("target_conflict", relative,
+                              "managed destination path contains a symbolic link")
         if not os.path.exists(destination):
             continue
         current_hash = _hash(destination)

@@ -38,10 +38,13 @@ def config_value(config, key, *, allow_empty=False):
         "MIN_HOURS_BETWEEN_HOLDOUT": "holdout.min_hours_between",
         "BUDGET_MAX_HOLDOUT_RUNS": "holdout.max_runs",
         "DIVERGENCE_WINDOW_CYCLES": "detectors.divergence.window_cycles",
+        "DIVERGENCE_ENFORCEMENT": "detectors.divergence.enforcement",
         "PROBE_ON_HOLDOUT": "detectors.probe.mode",
         "PROBE_EVERY_K": "detectors.probe.every_k",
         "PROBE_FLOOR": "detectors.probe.floor",
+        "PROBE_ENFORCEMENT": "detectors.probe.enforcement",
         "COVERAGE_VARIANCE_FLOOR": "detectors.coverage_variance.floor",
+        "COVERAGE_VARIANCE_ENFORCEMENT": "detectors.coverage_variance.enforcement",
         "BUILD_CMD": "liveness.build_command",
         "BOOT_CMD": "liveness.boot_command",
         "HEALTH_CHECK": "liveness.health_check",
@@ -239,12 +242,21 @@ def parse_tag_message(raw):
             msg = {}
     except (json.JSONDecodeError, ValueError, TypeError):
         msg = {}
-    out = {field: validate_float(msg.get(field)) for field in AGENT_NUMERIC_FIELDS}
+    out = {
+        "dev_score": validate_float(msg.get("dev_score"), lo=0.0, hi=1.0),
+        "reported_tokens_in": validate_float(msg.get("reported_tokens_in"), lo=0.0),
+        "reported_tokens_out": validate_float(msg.get("reported_tokens_out"), lo=0.0),
+        "reported_cost_usd": validate_float(msg.get("reported_cost_usd"), lo=0.0),
+        "reported_wall_clock": validate_float(msg.get("reported_wall_clock"), lo=0.0),
+    }
     dev_ci = msg.get("dev_ci")
     if isinstance(dev_ci, list) and len(dev_ci) == 2:
-        lo = validate_float(dev_ci[0])
-        hi = validate_float(dev_ci[1])
-        out["dev_ci"] = [lo, hi] if lo is not None and hi is not None else None
+        lo = validate_float(dev_ci[0], lo=0.0, hi=1.0)
+        hi = validate_float(dev_ci[1], lo=0.0, hi=1.0)
+        score = out["dev_score"]
+        out["dev_ci"] = ([lo, hi] if lo is not None and hi is not None
+                         and lo <= hi and (score is None or lo <= score <= hi)
+                         else None)
     else:
         out["dev_ci"] = None
     out["model_id"] = validate_model_id(msg.get("model_id"))

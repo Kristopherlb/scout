@@ -5,13 +5,12 @@ This module is inward policy: it performs no subprocess or network I/O and
 does not import command or operations modules. Runtime callers receive one
 validated document instead of independently interpreting executable config.
 """
+import argparse
+import copy
 import json
 import os
 import re
-import argparse
 import sys
-import copy
-
 
 SCHEMA_VERSION = 1
 VALID_STATUSES = {"onboarding", "active", "paused", "retired", "example"}
@@ -239,10 +238,13 @@ def shell_values(contract):
         "MIN_HOURS_BETWEEN_HOLDOUT": "holdout.min_hours_between",
         "BUDGET_MAX_HOLDOUT_RUNS": "holdout.max_runs",
         "DIVERGENCE_WINDOW_CYCLES": "detectors.divergence.window_cycles",
+        "DIVERGENCE_ENFORCEMENT": "detectors.divergence.enforcement",
         "PROBE_ON_HOLDOUT": "detectors.probe.mode",
         "PROBE_EVERY_K": "detectors.probe.every_k",
         "PROBE_FLOOR": "detectors.probe.floor",
+        "PROBE_ENFORCEMENT": "detectors.probe.enforcement",
         "COVERAGE_VARIANCE_FLOOR": "detectors.coverage_variance.floor",
+        "COVERAGE_VARIANCE_ENFORCEMENT": "detectors.coverage_variance.enforcement",
         "BUILD_CMD": "liveness.build_command",
         "BOOT_CMD": "liveness.boot_command",
         "HEALTH_CHECK": "liveness.health_check",

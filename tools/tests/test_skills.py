@@ -54,6 +54,19 @@ class TestSkillPack(unittest.TestCase):
         lfd_shims.apply_all(checkout)
         self.assertEqual(self.read(os.path.join(checkout, "AGENTS.md")), first)
 
+    def test_managed_shims_reject_symlinked_destination_tree(self):
+        checkout = os.path.join(self.tmp, "checkout")
+        outside = os.path.join(self.tmp, "outside")
+        os.makedirs(checkout)
+        os.makedirs(outside)
+        self.write(os.path.join(outside, "copilot-instructions.md"), "caller owned\n")
+        os.symlink(outside, os.path.join(checkout, ".github"))
+        with self.assertRaises(lfd_shims.ShimError) as raised:
+            lfd_shims.apply_all(checkout)
+        self.assertEqual(raised.exception.code, "shim_conflict")
+        self.assertEqual(self.read(os.path.join(outside, "copilot-instructions.md")),
+                         "caller owned\n")
+
     def test_bundle_contains_execute_skill_only(self):
         lfd_bundle.generate_bundle(self.target, os.path.join(HUB_ROOT, "templates"))
         bundle = os.path.join(self.target, "bundle")

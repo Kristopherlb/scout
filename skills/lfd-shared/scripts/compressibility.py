@@ -21,6 +21,7 @@ import gzip
 import json
 import os
 
+
 def compressed_size(root):
     total = 0
     for dirpath, _, files in os.walk(root):
@@ -37,13 +38,19 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--solution-dir", required=True)
     p.add_argument("--eval-size", type=int, required=True)
-    p.add_argument("--history-file", default=".compressibility-history.jsonl")
+    p.add_argument("--history-file", required=True)
     p.add_argument("--cycle", type=int, required=True)
-    p.add_argument("--slope-threshold", type=float, default=0.5,
+    p.add_argument("--slope-threshold", type=float, required=True,
                     help="flag if compressed-size-vs-eval-size ratio grows "
                          "by more than this fraction relative to its "
                          "first recorded value")
     args = p.parse_args()
+    if args.eval_size < 1:
+        p.error("--eval-size must be at least 1")
+    if args.cycle < 1:
+        p.error("--cycle must be at least 1")
+    if args.slope_threshold < 0:
+        p.error("--slope-threshold must be non-negative")
 
     size = compressed_size(args.solution_dir)
     ratio = size / max(args.eval_size, 1)
@@ -51,7 +58,7 @@ def main():
     history = []
     if os.path.exists(args.history_file):
         with open(args.history_file) as f:
-            history = [json.loads(l) for l in f if l.strip()]
+            history = [json.loads(line) for line in f if line.strip()]
 
     trend = "insufficient_history"
     verdict = "PASS"

@@ -2,13 +2,13 @@
   "files": {
     ".agents/skills/lfd-execute/SKILL.md": "f61a61d8deb549b4d597eb2219fee46d2e2e4882eeed30804a425ee2f9b3d0e4",
     ".github/workflows/holdout-request-tag.yml": "619fe118229e4ee20a552f39b87afc78accdcc1040644b2417196a0e76cc0f6c",
-    ".lfd/eval/dev/case-d001.json": "35bc9f8b7aac2b33c050321a9c038bf251b60ab9e90b11caa65706b0ab12c72f",
-    ".lfd/goal.md": "3842cfe31e46089d8daa5825c0315001bcf6eaaf2b30bdf924f1c0b8b73db773",
-    ".lfd/harness/score-dev.sh": "bf43d3124872b84174cac28bb48176583f78b8987ee005c3a8e109b92af60a52",
+    ".lfd/eval/dev/case-d001.json": "37ae704bf341910be80b97f7bd19153b3f0c7c59dc731aa81b4c7be7bbfe1ea7",
+    ".lfd/goal.md": "a450515fb13f182962d9283ece2df9107b565fdf1e8994c4f42b10304c4dd63a",
+    ".lfd/harness/score-dev.sh": "914be57455a5c8e485da5a05dbae7bcd243dd083687284046ce108b19b465fa1",
     ".lfd/holdout-protocol.json": "619b6a612ef880930d8c47c160410e68ee90da047df00beed875e496cd5002a9",
     "scripts/target-repo/check-holdout-status.sh": "a817f26d6fe5b5d426a583764af4943a48caef914d622ab089ff2d6abdf4a0f1",
     "scripts/target-repo/materialize-holdout-request.py": "81f13e6c25686bf06016fd196ebfb9a700adf300de279ab0751884affcacf7df",
-    "scripts/target-repo/request-holdout-check.sh": "2c3ea4592c8ab0c5024f6b85f22f17240f6f03311403c759c801056821b4b264",
+    "scripts/target-repo/request-holdout-check.sh": "bb649fc0c5efc1bed60147b11b2bfd02e2a032a437e7950a285811ab956e9e93",
     "scripts/target-repo/score-dev.sh": "37bf8ee20257c92dbd0541c87e31cac7f2537cbdd072313e92dbf685018a4d19"
   },
   "schema_version": 1

@@ -26,6 +26,11 @@ configuration must never be committed to this public repository. CI runs
 `python3 tools/ci_checks.py public-release` to reject non-fixture target
 directories and generated root artifacts.
 
+Target-visible material must be generated and verified through the bundle
+allowlist and SHA-256 manifest. The bundle contains only the execution skill;
+onboarding, design, audit, patch, private harness, holdout, canary, log, and
+judgment material remain hub-side.
+
 Deletion in a later commit is not sanitization: Git history still contains the
 data. If private evaluation content enters a public repository or a repository
 that will become public, rotate the affected eval and rebuild the public source
@@ -48,9 +53,10 @@ Apply these controls to every private operational hub:
 ## Egress discipline
 
 The intended egress path is `ops/post-status.sh`. It returns only the score,
-confidence interval, divergence flag, and boolean probe verdict. Do not add
-case-level detail, operator names, holdout content, or scorer output to a
-target-visible status.
+confidence interval, divergence flag, boolean probe verdict, and boolean
+coverage-variance verdict. Each detector's validated `advisory | blocking`
+policy determines status success or failure. Do not add case-level detail,
+operator names, holdout content, or scorer output to a target-visible status.
 
 ## Running untrusted code
 

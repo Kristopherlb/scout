@@ -88,7 +88,7 @@ def cmd_parse_request(args):
     except lfd_holdout_protocol.ProtocolError as exc:
         print(json.dumps({"error": {"code": exc.code,
                                     "message": exc.message}}), file=sys.stderr)
-        raise SystemExit(2)
+        raise SystemExit(2) from exc
     json.dump(parsed, sys.stdout, sort_keys=True)
 
 
@@ -98,11 +98,23 @@ def cmd_append(args):
     if not lfd_holdout_protocol.REQUEST_ID_RE.fullmatch(args.request_id):
         sys.exit("append: request_id is not 32 lowercase hexadecimal characters")
 
-    def req_float(name, value):
-        v = lfd_common.validate_float(value)
+    def req_score(name, value):
+        v = lfd_common.validate_float(value, lo=0.0, hi=1.0)
         if v is None:
-            sys.exit(f"append: {name} is not a finite number: {value!r}")
+            sys.exit(f"append: {name} is not a finite score in [0,1]: {value!r}")
         return v
+
+    score = req_score("holdout_score", args.holdout_score)
+    ci_low = req_score("ci_low", args.ci_low)
+    ci_high = req_score("ci_high", args.ci_high)
+    if not ci_low <= score <= ci_high:
+        sys.exit("append: holdout interval must be ordered and contain the score")
+
+    scoring_seconds = None
+    if args.scoring_seconds not in (None, ""):
+        scoring_seconds = lfd_common.validate_float(args.scoring_seconds, lo=0.0)
+        if scoring_seconds is None:
+            sys.exit("append: scoring_seconds must be a non-negative finite number")
 
     row = {
         "cycle": len(rows) + 1,
@@ -111,14 +123,13 @@ def cmd_append(args):
         "sha": args.sha,
         "timestamp": datetime.datetime.now(datetime.timezone.utc)
                      .strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "holdout_score": req_float("holdout_score", args.holdout_score),
-        "holdout_ci": [req_float("ci_low", args.ci_low),
-                       req_float("ci_high", args.ci_high)],
+        "holdout_score": score,
+        "holdout_ci": [ci_low, ci_high],
         "liveness": args.liveness,
         "harness_version": lfd_common.harness_version(
             os.path.join(args.target_dir, "harness")),
         "hub_commit": args.hub_commit or None,
-        "scoring_seconds": lfd_common.validate_float(args.scoring_seconds),
+        "scoring_seconds": scoring_seconds,
     }
     # Agent-reported fields arrive pre-validated as JSON on stdin
     # (the parse-tag-msg output), re-validated here anyway.
@@ -138,15 +149,23 @@ def cmd_append(args):
         try:
             probe = json.loads(args.probe_json)
             ops = probe.get("operators")
-            if isinstance(ops, dict):
-                row["probe"] = {"operators": {
-                    str(k)[:64]: lfd_common.validate_float(v)
-                    for k, v in list(ops.items())[:32]
-                }}
-        except json.JSONDecodeError:
-            pass
-    cov = lfd_common.validate_float(args.coverage_variance, lo=0.0, hi=1.0)
-    if cov is not None:
+        except (json.JSONDecodeError, AttributeError):
+            sys.exit("append: probe_json must be an object with operator scores")
+        if not isinstance(ops, dict) or len(ops) > 32:
+            sys.exit("append: probe_json operators must be an object with at most 32 entries")
+        validated_ops = {}
+        for name, value in ops.items():
+            if not isinstance(name, str) or not name or len(name) > 64:
+                sys.exit("append: probe operator names must be 1-64 character strings")
+            parsed = lfd_common.validate_float(value, lo=0.0, hi=1.0)
+            if parsed is None:
+                sys.exit(f"append: probe operator {name!r} is not a score in [0,1]")
+            validated_ops[name] = parsed
+        row["probe"] = {"operators": validated_ops}
+    if args.coverage_variance not in (None, ""):
+        cov = lfd_common.validate_float(args.coverage_variance, lo=0.0, hi=1.0)
+        if cov is None:
+            sys.exit("append: coverage_variance is not a score in [0,1]")
         row["coverage_variance"] = cov
 
     lfd_common.append_log_row(args.log, row)

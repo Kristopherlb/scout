@@ -8,11 +8,13 @@ Use Python 3.9 or newer and install the development-only tools named in
 `pyproject.toml`. Run:
 
 ```bash
+bin/lfd walkthrough
 bin/lfd test
 python3 tools/ci_checks.py all
 python3 tools/ci_checks.py public-release
-shellcheck ops/*.sh bin/lfd templates/target-repo/scripts/target-repo/*.sh
-ruff check tools ops
+shellcheck bin/lfd
+find ops templates skills targets/_example -type f -name '*.sh' -print0 | xargs -0 shellcheck
+ruff check tools ops skills/lfd-shared/scripts
 mypy
 ```
 
